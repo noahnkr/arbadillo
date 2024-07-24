@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 import pandas as pd
-from selenium import webdriver
+from selenium import webdriver, By, WebDriverWait
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class BookScraper(ABC):
 
@@ -12,22 +12,13 @@ class BookScraper(ABC):
         self.base_url = base_url
 
     @abstractmethod
-    def format_event_time(self, date: str, time: str) -> str:
+    def format_event_datetime(self, date: str, time: str) -> str:
         pass
 
-    def get_page_html(self, url) -> str:
-        '''
-        Gets the raw HTML text from a webpage url.
+    @abstractmethod
+    def get_event_title(self, html: str) -> str:
+        pass
 
-        Parameters:
-            url: Desired url.
-
-        Returns:
-            str of raw HTML from the webpage url
-        '''
-        self.driver.get(url)
-        return self.driver.page_source
-    
     @abstractmethod
     def navigate_and_scrape(self, leagues: list) -> list:
         '''
@@ -45,21 +36,18 @@ class BookScraper(ABC):
         pass
 
     @abstractmethod
-    def scrape_event(self, html: str) -> list:
+    def scrape_event(self) -> list:
         '''
         Scrapes an event page for a certain sports book. 
 
         This function scrapes all of the available game and player prop odds
         for this event, and stores the data in a list.
 
-        Parameters:
-            html: Raw html of the event page.
-
         Returns:
             list of dictionaries
 
         Example:
-            >>> data = scrape_event(html)
+            >>> data = scrape_event()
             >>> print(data)
             [
                 # Moneyline
@@ -126,9 +114,27 @@ class BetMGMScraper(BookScraper):
     def __init__(self, driver: webdriver):
         super().__init__(driver, 'BetMGM', 'https://sports.il.betmgm.com/en/sports')
 
-    def format_event_time(self, date: str, time: str) -> str:
+    def get_event_title(self, html: str) -> str:
+        soup = BeautifulSoup(html, 'lxml')
+
+        participants = soup.find_all('div', class_='participant-name')
+        # TODO: Convert participant names into standard abbreviations
+        try:
+            date = soup.find('span', class_='date').text
+            time = soup.find('span', class_='time').text
+            datetime_str = self.format_event_datetime(date, time)
+        except:
+            # If the event date or time element is not present, then the event is live.
+            date = datetime.today().strftime('%Y-%m-%d')
+            datetime_str = f'{date}-LIVE'
+        
+        return f'{participants[0].text}@{participants[1].text} {datetime_str}'
+
+    def format_event_datetime(self, date: str, time: str) -> str:
         if date.lower() == 'today':
             date = datetime.now().date()
+        elif date.lower() == 'tomorrow':
+            date = (datetime.now() + timedelta(1)).date()
         else:
             date = datetime.strptime(date, '%m/%d/%y').date()
         
@@ -139,24 +145,46 @@ class BetMGMScraper(BookScraper):
 
     def navigate_and_scrape(self) -> list:
         data = []
+        self.driver.get(self.base_url)
 
-    def scrape_event(self, html) -> list:
+        self.driver.close()
+        return data
+
+    def scrape_event(self) -> list:
         data = []
-        soup = BeautifulSoup(html, 'lxml')
+        html = self.driver.page_source
+        event_title = self.get_event_title(html)
+        blocks = self.driver.find_elements(By.CSS_SELECTOR, 'ms-option-panel.option-panel')
+        for i, block in enumerate(blocks):
+            if i == 0:
+                block_html = block.get_attribute('innerHTML')
+                soup = BeautifulSoup(block_html, 'lxml')
+                keys = soup.find_all('six-pack-player-name')
 
-        participants = soup.find_all('div', class_='participant-name')
-        # TODO: Convert participant names into standard abbreviations
-        try:
-            date = soup.find('span', class_='date').text
-            time = soup.find('span', class_='time').text
-            datetime_str = self.format_event_time(date, time)
-        except:
-            date = datetime.today().strftime('%Y-%m-%d')
-            datetime_str = f'{date}-LIVE'
-        
-        event = f'{participants[0].text}@{participants[1].text} {datetime_str}'
 
-        blocks = soup.find_all('ms-option-panel', class_='option-panel')
+
+                continue
+
+            show_more_button = self.driver.find_elements(By.CSS_SELECTOR, 'div.show-more-less-button')
+            if show_more_button:
+                show_more_button[0].click()
+
+            prop_tabs = block.find_elements(By.CSS_SELECTOR, 'a.link-without-count')
+            for tab in prop_tabs:
+                # Click the prop tab
+                tab.click()
+
+                # Parse the updated block content
+                block_html = block.get_attribute('innerHTML')
+                soup = BeautifulSoup(block_html, 'lxml')
+
+
+
+
+            
+
+
+
 
             
 
