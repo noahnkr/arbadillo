@@ -1,10 +1,26 @@
 books = {
-	'Casesers': {
+	'Caesars': {
 		'NBA': 'https://sportsbook.caesars.com/us/il/bet/basketball/events/'
 	},
 	'DraftKings': {},
 	'BetMGM': {
 		'NBA': 'https://sports.il.betmgm.com/en/sports/basketball-7/betting/usa-9/nba-6004'
+	},
+	'BetRivers': {},
+	'PointsBet': {},
+	'ESPNBet': {}
+}
+
+target_props = {
+	'Caesars': {},
+	'DraftKings': {},
+	'BetMGM': {
+    'MLB': {
+			# Batting
+      'HITS', 'RBIS', 'BASES', 'H+R+RBI', 'STOLEN BASES', 'TOTAL RUNS', 'SINGLES', 'DOUBLES', 'TRIPLES', 'WALKS',
+			# Pitching
+			'STRIKEOUTS', 'PITCHER HITS ALLOWED', 'EARNED RUNS', 'OUTS',
+		},
 	},
 	'BetRivers': {},
 	'PointsBet': {},
@@ -110,29 +126,3 @@ team_acronyms = {
 	'TORONTO BLUE JAYS': 'TOR', 'TORONTO': 'TOR', 'BLUE JAYS': 'TOR', 'TOR': 'TOR',
 	'WASHINGTON NATIONALS': 'WAS', 'WASHINGTON': 'WAS', 'NATIONALS': 'WAS', 'WAS': 'WAS',
 }
-
-def get_base_url(sportsbook, league) -> str:
-  '''
-	Gets the base URL that the driver should navigate to in order
-  to locate all of the event odds,
-  
-  Parameters:
-		sportsbook (str): Sports book domain for the URL.
-    league (str): The sports league.
-    
-  Returns:
-		str: Base url for the league page for the given sportsbook.
-  '''
-  return books[sportsbook][league]
-  
-def get_team_abbreviation(team_name):
-  '''
-	Converts any form of team name into its 3-letter abbreviation.
-
-	Parameters:
-		team_name (str): The team name to convert.
-		
-	Returns:
-		str: The 3-letter abbreviation of the team.
-	'''
-  return team_acronyms[team_name]
