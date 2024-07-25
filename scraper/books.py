@@ -3,6 +3,7 @@ import pandas as pd
 from selenium import webdriver, By, WebDriverWait
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+import hashlib
 
 class BookScraper(ABC):
 
@@ -10,14 +11,6 @@ class BookScraper(ABC):
         self.driver = driver
         self.book_name = book_name
         self.base_url = base_url
-
-    @abstractmethod
-    def format_event_datetime(self, date: str, time: str) -> str:
-        pass
-
-    @abstractmethod
-    def get_event_title(self, html: str) -> str:
-        pass
 
     @abstractmethod
     def navigate_and_scrape(self, leagues: list) -> list:
@@ -28,15 +21,34 @@ class BookScraper(ABC):
         of odds data for each event happening in the requested leagues.
 
         Parameters:
-            leagues: A list of the desired leagues to get odds data from.
+            leagues (list): A list of the desired leagues to get odds data from.
 
         Returns:
-            list of dictionaries
+            list: Sportsbook odds
         '''
         pass
 
     @abstractmethod
-    def scrape_event(self) -> list:
+    def __format_event_datetime(self, date: str, time: str) -> str:
+        '''
+        Converts a date in a specific format according to the sportsbook
+        into the general format YYYY-MM-DD.
+
+        Parameters:
+            date (str): Event date.
+            time (str): Event time.
+        
+        Returns:
+            str: Formatted date in the format YYYY-MM-DD.
+        '''
+        pass
+
+    @abstractmethod
+    def __get_event_title(self, html: str) -> str:
+        pass
+
+    @abstractmethod
+    def __scrape_event(self) -> list:
         '''
         Scrapes an event page for a certain sports book. 
 
@@ -52,22 +64,27 @@ class BookScraper(ABC):
             [
                 # Moneyline
                 {
+                    'event': 'BOS@COL_2024-07-24_07:30',
+                    'key': '979fdc3b0bba27b9b3da229d9cd3302f'
+                    'timestamp': '2024-07-24T13:56'
                     'book' 'BetMGM',
+                    'sport': 'Baseball'
                     'league': 'MLB',
-                    'event': 'BOS@COL 2024-07-24-07:30',
                     'type': 'moneyline',
                     'team': 'BOS',
                     'line': None,
                     'odds': -130,
                     'player': None,
                     'prop': None,
-                    'timestamp': '2024-07-24T13:56'
+                    
                 },
                 # Spread
                 {
+                    'event': 'BOS@COL_2024-07-24_07:30',
+                    'key': '979fdc3b0bba27b9b3da229d9cd3302f'
                     'book' 'BetMGM',
+                    'sport': 'Baseball'
                     'league': 'MLB',
-                    'event': 'BOS@COL 2024-07-24-07:30',
                     'type': 'spread',
                     'team': 'BOS',
                     'line': -1.5,
@@ -78,9 +95,11 @@ class BookScraper(ABC):
                 }, 
                 # Total
                 {
+                    'event': 'BOS@COL_2024-07-24_07:30',
+                    'key': '979fdc3b0bba27b9b3da229d9cd3302f'
                     'book' 'BetMGM',
+                    'sport': 'Baseball'
                     'league': 'MLB',
-                    'event': 'BOS@COL 2024-07-24-07:30',
                     'type': 'over',
                     'team': None,
                     'line': 11,
@@ -88,12 +107,15 @@ class BookScraper(ABC):
                     'player': None,
                     'prop': None,
                     'timestamp': '2024-07-24T13:56'
+                    
                 }, 
                 # Player Prop
                 {
+                    'event': 'BOS@COL_2024-07-24_07:30',
+                    'key': '979fdc3b0bba27b9b3da229d9cd3302f'
                     'book' 'BetMGM',
+                    'sport': 'Baseball'
                     'league': 'MLB',
-                    'event': 'BOS@COL 2024-07-24-07:30',
                     'type': None,
                     'team': None,
                     'line': 6.5,
@@ -112,9 +134,15 @@ class BookScraper(ABC):
 class BetMGMScraper(BookScraper):
 
     def __init__(self, driver: webdriver):
-        super().__init__(driver, 'BetMGM', 'https://sports.il.betmgm.com/en/sports')
+        super().__init__(driver, 'BetMGM', )
 
-    def get_event_title(self, html: str) -> str:
+    def navigate_and_scrape(self) -> list:
+        data = []
+        self.driver.get(self.base_url)
+        self.driver.close()
+        return data
+    
+    def __get_event_title(self, html: str) -> str:
         soup = BeautifulSoup(html, 'lxml')
 
         participants = soup.find_all('div', class_='participant-name')
@@ -126,11 +154,11 @@ class BetMGMScraper(BookScraper):
         except:
             # If the event date or time element is not present, then the event is live.
             date = datetime.today().strftime('%Y-%m-%d')
-            datetime_str = f'{date}-LIVE'
+            datetime_str = f'{date}_LIVE'
         
-        return f'{participants[0].text}@{participants[1].text} {datetime_str}'
+        return f'{participants[0].text}@{participants[1].text}_{datetime_str}'
 
-    def format_event_datetime(self, date: str, time: str) -> str:
+    def __format_event_datetime(self, date: str, time: str) -> str:
         if date.lower() == 'today':
             date = datetime.now().date()
         elif date.lower() == 'tomorrow':
@@ -141,28 +169,20 @@ class BetMGMScraper(BookScraper):
         time = datetime.strptime(time, '%I:%M %p').time()
 
         formatted_datetime = datetime.combine(date, time)
-        return formatted_datetime.strftime('%Y-%m-%d-%H:%M')
+        return formatted_datetime.strftime('%Y-%m-%d_%H:%M')
 
-    def navigate_and_scrape(self) -> list:
-        data = []
-        self.driver.get(self.base_url)
-
-        self.driver.close()
-        return data
-
-    def scrape_event(self) -> list:
+    
+    def __scrape_event(self) -> list:
         data = []
         html = self.driver.page_source
         event_title = self.get_event_title(html)
+    
         blocks = self.driver.find_elements(By.CSS_SELECTOR, 'ms-option-panel.option-panel')
         for i, block in enumerate(blocks):
             if i == 0:
                 block_html = block.get_attribute('innerHTML')
                 soup = BeautifulSoup(block_html, 'lxml')
                 keys = soup.find_all('six-pack-player-name')
-
-
-
                 continue
 
             show_more_button = self.driver.find_elements(By.CSS_SELECTOR, 'div.show-more-less-button')
@@ -177,6 +197,9 @@ class BetMGMScraper(BookScraper):
                 # Parse the updated block content
                 block_html = block.get_attribute('innerHTML')
                 soup = BeautifulSoup(block_html, 'lxml')
+
+        # TODO: Implement full outcome into hash
+        # key = hashlib.md5(event_title.encode()).hexdigest()
 
 
 
