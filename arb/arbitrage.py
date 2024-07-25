@@ -3,6 +3,7 @@ def american_to_decimal(american_odds):
     return american_odds / 100 + 1 if american_odds > 0 else \
            100 / american_odds + 1
 
+
 def is_arbitrage_opportunity(odds1, odds2):
     odds1 = american_to_decimal(odds1)
     odds2 = american_to_decimal(odds2)
@@ -12,6 +13,7 @@ def is_arbitrage_opportunity(odds1, odds2):
     ip2 = 1 / odds2
 
     return ip1 + ip2 < 1
+
 
 def calculate_arbitrage(odds1, odds2, investment):
     odds1 = american_to_decimal(odds1)

@@ -7,10 +7,10 @@ from bookutil import get_team_abbreviation, get_base_url
 import hashlib
 
 class BookScraper(ABC):
-
     def __init__(self, driver: webdriver, book_name: str):
         self.driver = driver
         self.book_name = book_name
+
 
     @abstractmethod
     def navigate_and_scrape(self, leagues: list) -> list:
@@ -27,6 +27,7 @@ class BookScraper(ABC):
             list: Sportsbook odds
         '''
         pass
+
 
     @abstractmethod
     def __format_event_datetime(self, date: str, time: str) -> str:
@@ -46,6 +47,7 @@ class BookScraper(ABC):
     @abstractmethod
     def __get_event_title(self, html: str) -> str:
         pass
+
 
     @abstractmethod
     def __scrape_event(self) -> list:
@@ -129,14 +131,13 @@ class BookScraper(ABC):
         '''
         pass
 
-        
 
 class BetMGMScraper(BookScraper):
-
     def __init__(self, driver: webdriver):
         super().__init__(driver, 'BetMGM')
 
-    def navigate_and_scrape(self, leagues) -> list:
+
+    def navigate_and_scrape(self, leagues: list) -> list:
         data = []
         for league in leagues:
             base_url = get_base_url(self.book_name, league)
@@ -144,6 +145,7 @@ class BetMGMScraper(BookScraper):
 
         self.driver.close()
         return data
+
     
     def __get_event_title(self, html: str) -> str:
         soup = BeautifulSoup(html, 'lxml')
@@ -153,13 +155,14 @@ class BetMGMScraper(BookScraper):
         try:
             date = soup.find('span', class_='date').text
             time = soup.find('span', class_='time').text
-            datetime_str = self.format_event_datetime(date, time)
+            datetime_str = self.__format_event_datetime(date, time)
         except:
             # If the event date or time element is not present, then the event is live.
             date = datetime.today().strftime('%Y-%m-%d')
             datetime_str = f'{date}_LIVE'
         
         return f'{participants[0].text}@{participants[1].text}_{datetime_str}'
+
 
     def __format_event_datetime(self, date: str, time: str) -> str:
         if date.lower() == 'today':
@@ -178,7 +181,7 @@ class BetMGMScraper(BookScraper):
     def __scrape_event(self) -> list:
         data = []
         html = self.driver.page_source
-        event_title = self.get_event_title(html)
+        event_title = self.__get_event_title(html)
     
         blocks = self.driver.find_elements(By.CSS_SELECTOR, 'ms-option-panel.option-panel')
         for i, block in enumerate(blocks):
@@ -194,8 +197,7 @@ class BetMGMScraper(BookScraper):
 
             prop_tabs = block.find_elements(By.CSS_SELECTOR, 'a.link-without-count')
             for tab in prop_tabs:
-                # Click the prop tab
-                tab.click()
+                tab.click() # Click the prop tab
 
                 # Parse the updated block content
                 block_html = block.get_attribute('innerHTML')

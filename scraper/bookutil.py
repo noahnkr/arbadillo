@@ -111,7 +111,6 @@ team_acronyms = {
 	'WASHINGTON NATIONALS': 'WAS', 'WASHINGTON': 'WAS', 'NATIONALS': 'WAS', 'WAS': 'WAS',
 }
 
-
 def get_base_url(sportsbook, league) -> str:
   '''
 	Gets the base URL that the driver should navigate to in order
@@ -137,4 +136,3 @@ def get_team_abbreviation(team_name):
 		str: The 3-letter abbreviation of the team.
 	'''
   return team_acronyms[team_name]
-			
