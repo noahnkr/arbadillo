@@ -3,14 +3,14 @@ import pandas as pd
 from selenium import webdriver, By, WebDriverWait
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+from bookutil import get_team_abbreviation, get_base_url
 import hashlib
 
 class BookScraper(ABC):
 
-    def __init__(self, driver: webdriver, book_name: str, base_url: str):
+    def __init__(self, driver: webdriver, book_name: str):
         self.driver = driver
         self.book_name = book_name
-        self.base_url = base_url
 
     @abstractmethod
     def navigate_and_scrape(self, leagues: list) -> list:
@@ -134,11 +134,14 @@ class BookScraper(ABC):
 class BetMGMScraper(BookScraper):
 
     def __init__(self, driver: webdriver):
-        super().__init__(driver, 'BetMGM', )
+        super().__init__(driver, 'BetMGM')
 
-    def navigate_and_scrape(self) -> list:
+    def navigate_and_scrape(self, leagues) -> list:
         data = []
-        self.driver.get(self.base_url)
+        for league in leagues:
+            base_url = get_base_url(self.book_name, league)
+            self.driver.get(base_url)
+
         self.driver.close()
         return data
     
