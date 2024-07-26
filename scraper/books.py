@@ -201,21 +201,23 @@ class BetMGMScraper(BookScraper):
 
 	
 	def __scrape_event(self, league: str) -> list:
-		data = []
+		event_picks = []
 		html = self.driver.page_source
 		away, home, datetime_str = self.__get_event_info(html)
 		event_title = f'{away}@{home}_{datetime_str}'
 	
 		blocks = self.driver.find_elements(By.CSS_SELECTOR, 'ms-option-panel.option-panel')
 		for block in blocks:
-			block_data = self.__scrape_block(block)
-			data.extend(block_data)
+			block_picks = self.__scrape_block(block, league, event_title)
+			event_picks.extend(block_picks)
 
-		return data
+		return event_picks
 
 
 	def __scrape_block(self, block, league, event_title) -> list:
 		block_picks = []
+		block_title = soup.find('span', class_='market-name').text.upper()
+		block_type = soup.find('div', class_='option-group-container').get_attribute_list('class')[1] # TODO: Make sure this works.
 
 		# Make sure the block is open before getting HTML content.
 		is_closed = block.find_element(By.CSS_SELECTOR, 'div.option-group-header-chevron span') \
@@ -229,57 +231,101 @@ class BetMGMScraper(BookScraper):
 		if show_more_button:
 			show_more_button[0].click()
 
-		# TODO: If there is a scroll bar, iterate over each tab link and click it.
+		# Some blocks have a scroll tab at the top  for different props. If there is a scroll bar, iterate
+		# through the scrollbar links and click each one to change the HTML content. Otherwise, add a single 'None' to the tab list,
+		# which will prevent anything from being clicked.
 		tabs = []
 		scroll_bar = block.find_elements(By.TAG_NAME, 'ms-scroll-adapter')
 		if scroll_bar:
 			tab_links = block.find_elements(By.CSS_SELECTOR, 'a.link-without-count')
+			tabs.extend(tab_links)
+		else:
+			tabs.append(None)
 
-		
-		block_html = block.get_attribute('innerHTML')
-		soup = BeautifulSoup(block_html, 'lxml')
+		for tab in tabs:
+			if tab:
+				tab.click()
+			
+			block_html = block.get_attribute('innerHTML')
+			soup = BeautifulSoup(block_html, 'lxml')
 
-		block_title = soup.find('span', class_='market-name').text
-		block_type = soup.find('div', class_='option-group-container').get_attribute_list('class')[1] # TODO: Make sure this works.
+			match block_type:
+				# Game Lines
+				case 'six-pack-container':
+					spreads, totals, moneylines = [], [], []
 
-		match block_type:
-			# Game Lines
-			case 'six-pack-container':
-				spreads, totals, moneylines = [], [], []
+					options = soup.find_all('div', class_='option-row')
+					for row in options:
+						team =  self.__get_team_abbreviation(row.find('six-pack-player-name').text)
+						options = row.find_all('ms-option', class_='option')
 
-				option_rows = soup.find_all('div', class_='option-row')
-				for row in option_rows:
-					team =  self.__get_team_abbreviation(row.find('six-pack-player-name').text)
-					options = row.find_all('ms-option', class_='option')
+						for option in options:
+							option_pick = option.find('ms-event-pick', _class='option-pick')
+							if option_pick:
+								name = option_pick.find('div', class_='name')
+								value = option_pick.find('div', class_='value')
+								
+								# Determine the type of pick
+								if name and '+' in name.text or '-' in name.text:
+									line = float(name.text.replace('+', ''))
+									odds = int(odds.text.replace('+', ''))
+									spreads.append(('SPREAD', line, odds))
+								elif name and 'O' in name.text or 'U' in name.text:
+									ou = 'TOTAL_OVER' if 'O' in name.text else 'TOTAL_UNDER'
+									line = float(name.text.replace('O', '').replace('U', '').strip())
+									odds = int(odds.text.replace('+', ''))
+									totals.append((ou, line, odds))
+								else:
+									odds = int(odds.text.replace('+', ''))
+									moneylines.append(('MONEYLINE', None, odds))
+					
+					six_pack_picks = itertools.chain(spreads, totals, moneylines)
+					for game_line in six_pack_picks: 
+						pick = self.__create_pick(event_title, self.book_name, league,
+												game_line[0], team, game_line[1], game_line[2],
+												None, None)
+						block_picks.append(pick)
+			
+				# Game Over/Unders
+				case 'over_under_container':
+					if ':' in block_title:
+						title_parts = block_title.split(':')
+						team = self.__get_team_abbreviation(title_parts[0].strip())
+						pick_type = title_parts[1].strip().replace(' ', '-') # TODO: Standardize pick type names
+					else:
+						team = None
+						pick_type = block_title.strip().replace(' ', '-')
 
-					for option in options:
-						pick = option.find('ms-event-pick', _class='option-pick')
-						if pick:
-							name = pick.find('div', class_='name')
-							value = pick.find('div', class_='value')
-							
-							if name and '+' in name.text or '-' in name.text:
-								line = int(name.text.replace('+', ''))
-								value = int(value.text.replace('+', ''))
-								spreads.append(('spread', line, value))
-							elif name and 'O' in name.text or 'U' in name.text:
-								ou = 'Over' if 'O' in name.text else 'Under'
-								line = int(name.text.replace('O', '').replace('U', '').strip())
-								value = int(value.text.replace('+', ''))
-								totals.append((ou, line, value))
-							else:
-								moneylines.append(('moneyline', None, int(value.replace('+', ''))))
+					lines  = soup.find_all('div', class_='attribute_key')
+					options = soup.find_all('ms-option', class_='option')
+					for i, option in enumerate(options):
+						line = float(lines[i / 2].text)
+						pick_type += f'_{'OVER' if i % 2 == 0 else 'UNDER'}'
+
+						option_pick = option.find('ms-event-pick', class_='option-pick')
+						if option_pick:
+							odds = int(option_pick.find('ms-font-resizer').text.replace('+', '').strip())
+							pick = self.__create_pick(event_title, self.book_name, league,
+													pick_type, team, line, odds,
+													None, None)
+							block_picks.append(pick)
 				
-				six_pack_picks = itertools.chain(spreads, totals, moneylines)
-				for game_line in six_pack_picks: 
-					pick = self.__create_pick(event_title, self.book_name, league,
-											  game_line[0], team, game_line[1], game_line[2],
-											  None, None)
-					block_picks.append(pick)
-		
-			case 'over_under_container':
+				# Player Props
+				case 'player-props-container':
+					players = soup.find_all('div', class_='player-props-player-name')
+					options = soup.find_all('ms-option', class_='option')
+					pick_type = 'PLAYER-PROP'
+					for i, option in enumerate(options):
+						player = players[i % 2].text
+						prop = f'{tab.text.upper()}_{'OVER' if i % 2 == 0 else 'UNDER'}'
+						option_pick = option.find('ms-event-pick', class_='option-pick')
+						if option_pick:
+							line = float(option_pick.find('div', class_='name').text)
+							odds = int(option_pick.find('div', class_='value').text.replace('+', ''))
+							pick = self.__create_pick(event_title, self.book_name, league,
+							                          pick_type, None, line, odds,
+													  player, prop)
+							block_picks.append(pick)
 
 
-				return []
-			case _:
-				return []
+
