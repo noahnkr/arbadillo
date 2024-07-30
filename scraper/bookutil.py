@@ -4,7 +4,8 @@ books = {
 	},
 	'DraftKings': {},
 	'BetMGM': {
-		'NBA': 'https://sports.il.betmgm.com/en/sports/basketball-7/betting/usa-9/nba-6004'
+		'NBA': 'https://sports.il.betmgm.com/en/sports/basketball-7/betting/usa-9/nba-6004',
+        'MLB': 'https://sports.il.betmgm.com/en/sports/baseball-23/betting/usa-9/mlb-75'
 	},
 	'BetRivers': {},
 	'PointsBet': {},
