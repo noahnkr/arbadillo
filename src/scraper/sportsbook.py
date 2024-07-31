@@ -1,8 +1,4 @@
-from scraper import (
-    ABC, abstractmethod,
-    WebDriver, datetime,
-    hashlib
-)
+from . import *
 
 class BookScraper(ABC):
 	def __init__(self, driver: WebDriver, book_name: str):
@@ -29,27 +25,29 @@ class BookScraper(ABC):
 			try:
 				league_picks = self._scrape_league(league)
 				picks.extend(league_picks)
-			except Exception as e:
+			except ScraperError as e:
 				print(f'Error getting picks for league {league}: {e}')
+			except Exception as e:
+				print(f'Unexpected error for league {league}: {e}')
 
 		self.driver.close()
 		return picks
 
 
 	@staticmethod
-	def _create_pick(event_title, book_name, league, pick_type, 
-					  team, line, odds, player, prop) -> dict:
+	def _create_pick(event: str, book: str, league: str, pick_type: str,
+					 team: str, line: float, odds: int, player: str, prop: str) -> dict:
 		'''
 		Creates a pick dictionary with a unique key based on the input parameters.
 
 		Args:
-			event_title (str): The title of the sporting event.
-			book_name (str): The name of the sportsbook.
+			event (str): The title of the sporting event.
+			book (str): The name of the sportsbook.
 			league (str): The league associated with the event.
 			pick_type (str): The type of pick (e.g., spread, moneyline, total).
 			team (str): The team associated with the pick.
-			line (str): The betting line for the pick.
-			odds (str): The odds associated with the pick.
+			line (float): The betting line for the pick.
+			odds (int): The odds associated with the pick.
 			player (str): The player associated with the pick, if any.
 			prop (str): The prop associated with the pick, if any.
 
@@ -60,17 +58,17 @@ class BookScraper(ABC):
 			The unique key is generated using a SHA-256 hash of a string formed by concatenating
 			the input parameters with underscores. The timestamp is the current datetime.
 		'''
-		pick_values = [event_title, league, pick_type,
+		pick_values = [event, league, pick_type,
 					   team, line, odds, player, prop]
 
 		pick_string = '_'.join(str(p) if p is not None else '' for p in pick_values)
 		key = hashlib.sha256(pick_string.encode()).hexdigest()
-		timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+		timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
 
 		return {
-			'event': event_title,
+			'event': event,
 			'key': key,
-			'book': book_name,
+			'book': book,
 			'league': league,
 			'type': pick_type,
 			'team': team,
@@ -127,12 +125,12 @@ class BookScraper(ABC):
 
 
 	@abstractmethod
-	def _get_event_info(self, html: str) -> str:
+	def _get_event_info(self, soup: BeautifulSoup) -> str:
 		'''
 		Gets the event information from an event page on the sports book.
 
 		Args:
-			html (str): the raw HTML of the event page. 
+			soup (BeautifulSoup): parsed HTML content of the event page
 
 		Returns:
 			tuple: Away, Home, Datetime
@@ -147,7 +145,7 @@ class BookScraper(ABC):
 		 
 
 	@abstractmethod
-	def _scrape_event(self, league: str) -> list:
+	def _scrape_event(self, league: str, picks: list) -> None:
 		'''
 		Scrapes an event page for a certain sports book. 
 
@@ -163,7 +161,7 @@ class BookScraper(ABC):
 		pass
 
 	@abstractmethod
-	def _scrape_block(self, block, league, event_title) -> str:
+	def _scrape_block(self, block: WebElement, league: str, event: str, picks: list) -> None:
 		pass
 
 

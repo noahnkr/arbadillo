@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.common.exceptions import (
+    StaleElementReferenceException, NoSuchElementException
+)
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -9,11 +12,21 @@ from datetime import datetime, timedelta
 import hashlib
 import itertools
 
+from scraper.exceptions import (
+    ScraperError, 
+    LeagueNotFoundError, 
+    EventNotFoundError, 
+    BlockNotFoundError
+)
+
 __all__ = [
     'ABC', 'abstractmethod',
-    'WebDriver', 'WebElement',
-    'By', 'WebDriverWait', 'EC',
-    'BeautifulSoup',
+    'WebDriver', 'WebElement', 'WebDriverWait',
+    'By', 'EC', 'BeautifulSoup',
     'datetime', 'timedelta',
-    'hashlib', 'itertools'
+    'hashlib', 'itertools',
+    'ScraperError', 'LeagueNotFoundError', 'EventNotFoundError', 
+    'BlockNotFoundError', 'StaleElementReferenceException',
+    'NoSuchElementException'
 ]
+
