@@ -2,8 +2,9 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from scraper.books import BetMGMScraper
-import pprint
+from src.scraper.sportsbook import BetMGMScraper
+import json
+import os
 
 def get_chrome_options():
     chrome_options = Options()
@@ -44,8 +45,13 @@ def main():
     scraper = BetMGMScraper(driver)
     data = scraper.scrape(['MLB'])
 
-    pp = pprint.PrettyPrinter(indent=4)
-    # pp.pprint(data)
+    PATH = './data'
+    if not os.path.exists(PATH):
+        os.makedirs(PATH)
+
+    with open('data/export.json', 'w') as file:
+        json.dump(data, file, indent=4)
+
 
 if __name__ == '__main__':
     main()

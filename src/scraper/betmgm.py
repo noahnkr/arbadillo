@@ -1,182 +1,14 @@
-from abc import ABC, abstractmethod
-from selenium.webdriver.remote.webdriver import WebDriver
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
-from scraper.bookutil import books, target_props, team_acronyms
-import hashlib
-import itertools
-
-class BookScraper(ABC):
-	def __init__(self, driver: WebDriver, book_name: str):
-		self.driver = driver
-		self.book_name = book_name
-
-
-	def scrape(self, leagues: list) -> list:
-		'''
-		Get's all the picks and their odds for this sports book in the given leagues.
-
-		Navigates a sports book and for each league, starting from the league's base URL,
-		scrapes a list of every possible picks and it's odds for each event happening in 
-		the requested leagues.
-
-		Parameters:
-			leagues (list): a list of the desired leagues to get odds data from.
-
-		Returns:
-			list: sportsbook odds
-		'''
-		picks = []
-		for league in leagues:
-			try:
-				league_picks = self._scrape_league(league)
-				picks.extend(league_picks)
-			except Exception as e:
-				print(f'Error getting picks for league {league}: {e}')
-
-		self.driver.close()
-		return picks
-
-
-	@staticmethod
-	def _create_pick(event_title, book_name, league, pick_type, 
-					  team, line, odds, player, prop) -> dict:
-		'''
-		Creates a pick dictionary with a unique key based on the input parameters.
-
-		Parameters:
-			event_title (str): The title of the sporting event.
-			book_name (str): The name of the sportsbook.
-			league (str): The league associated with the event.
-			pick_type (str): The type of pick (e.g., spread, moneyline, total).
-			team (str): The team associated with the pick.
-			line (str): The betting line for the pick.
-			odds (str): The odds associated with the pick.
-			player (str): The player associated with the pick, if any.
-			prop (str): The prop associated with the pick, if any.
-
-		Returns:
-			dict: A dictionary containing the pick details, including a unique key and timestamp.
-		
-		Note:
-			The unique key is generated using a SHA-256 hash of a string formed by concatenating
-			the input parameters with underscores. The timestamp is the current datetime.
-		'''
-		pick_values = [event_title, league, pick_type,
-					   team, line, odds, player, prop]
-
-		pick_string = '_'.join(str(p) if p is not None else '' for p in pick_values)
-		key = hashlib.sha256(pick_string.encode()).hexdigest()
-		timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-
-		return {
-			'event': event_title,
-			'key': key,
-			'book': book_name,
-			'league': league,
-			'type': pick_type,
-			'team': team,
-			'line': line,
-			'odds': odds,
-			'player': player,
-			'prop': prop,
-			'timestamp': timestamp,
-		}
-
-	def _get_base_url(self, league) -> str:
-		'''
-		Gets the base URL that the driver should navigate to in order
-		to locate all of the event odds,
-		
-		Parameters:
-			sportsbook (str): Sports book domain for the URL.
-			league (str): The sports league.
-			
-		Returns:
-				str: Base url for the league page for the given sportsbook.
-		'''
-		return books[self.book_name][league]
-	
-	@staticmethod
-	def _get_team_abbreviation(team_name):
-		'''
-		Converts any form of team name into its 3-letter abbreviation.
-
-		Parameters:
-			team_name (str): The team name to convert.
-			
-		Returns:
-			str: The 3-letter abbreviation of the team.
-		'''
-		return team_acronyms[team_name]
-
-
-	@staticmethod
-	@abstractmethod
-	def _format_event_datetime(self, date: str, time: str) -> str:
-		'''
-		Converts a date in a specific format according to the sportsbook
-		into the general format YYYY-MM-DD.
-
-		Parameters:
-			date (str): event date.
-			time (str): event time.
-		
-		Returns:
-			str: formatted date in the format YYYY-MM-DD.
-		'''
-		pass
-
-
-	@abstractmethod
-	def _get_event_info(self, html: str) -> str:
-		'''
-		Gets the event information from an event page on the sports book.
-
-		Parameters:
-			html (str): the raw HTML of the event page. 
-
-		Returns:
-			tuple: Away, Home, Datetime
-		'''
-		pass
-
-
-	@abstractmethod
-	def _scrape_league(self, league: str) -> list:
-		'''Scrapes all the possible picks and their odds for the league on this sports book.'''
-		pass
-		 
-
-	@abstractmethod
-	def _scrape_event(self, league: str) -> list:
-		'''
-		Scrapes an event page for a certain sports book. 
-
-		This function scrapes all of the available game and player prop odds
-		for this event, and stores the data in a list.
-
-		Parameters:
-			league (str): the sports league of the event.
-
-		Returns:
-			list: all available betting options for an event.
-		'''
-		pass
-
-	@abstractmethod
-	def _scrape_block(self, block, league, event_title) -> str:
-		pass
-
+from scraper import (
+    WebDriver, WebElement,
+    By, WebDriverWait, EC,
+    BeautifulSoup,
+    datetime, timedelta
+)
+from scraper.sportsbook import BookScraper
 
 class BetMGMScraper(BookScraper):
     def __init__(self, driver: WebDriver):
         super().__init__(driver, 'BetMGM')
-
 
     def _get_event_info(self, html: str) -> tuple:
         soup = BeautifulSoup(html, 'lxml')
@@ -296,6 +128,7 @@ class BetMGMScraper(BookScraper):
             block_type = block.find_element(By.CSS_SELECTOR, 'div.option-group-container').get_attribute('class').split()[1]
         except Exception as e:
             print(f'Error getting block title and type')
+            return []
 
         print(f'Scraping block: {block_title} ({block_type})')
 
@@ -326,6 +159,8 @@ class BetMGMScraper(BookScraper):
                             team_text = row.find('div', class_='six-pack-player-name').text.strip().upper()
                         except Exception as e:
                              print(f'Error getting team name in block {block_title} ({block_type}): {e}')
+                             continue
+
                         team = self._get_team_abbreviation(team_text)
                         options = row.find_all('ms-option', class_='option')
 
@@ -361,17 +196,17 @@ class BetMGMScraper(BookScraper):
                     if ':' in block_title:
                         title_parts = block_title.split(':')
                         team = self._get_team_abbreviation(title_parts[0].strip())
-                        pick_type = title_parts[1].strip().replace(' ', '-')
+                        pick_title = title_parts[1].strip().replace(' ', '-')
                     else:
                         team = None
-                        pick_type = block_title.strip().replace(' ', '-')
+                        pick_title = block_title.strip().replace(' ', '-')
 
                     lines = soup.find_all('div', class_='attribute-key')
                     options = soup.find_all('ms-option', class_='option')
                     for i, option in enumerate(options):
                         try:
-                            line = float(lines[int(i / 2)].text)
-                            pick_type += f'_{'OVER' if i % 2 == 0 else 'UNDER'}'
+                            line = float(lines[i // 2].text)
+                            pick_type = f'{pick_title}_{'OVER' if i % 2 == 0 else 'UNDER'}'
 
                             option_pick = option.find('ms-event-pick', class_='option-pick')
                             if option_pick:
@@ -389,7 +224,7 @@ class BetMGMScraper(BookScraper):
                         pick_type = 'PLAYER-PROP'
                         for i, option in enumerate(options):
                             try:
-                                player = players[int(i / 2)].text
+                                player = players[i // 2].text
                                 prop = f'{tab.text.replace(' ', '-').upper()}_{'OVER' if i % 2 == 0 else 'UNDER'}'
                                 option_pick = option.find('ms-event-pick', class_='option-pick')
                                 if option_pick:

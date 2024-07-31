@@ -1,4 +1,173 @@
-books = {
+from scraper import (
+    ABC, abstractmethod,
+    WebDriver, datetime,
+    hashlib
+)
+
+class BookScraper(ABC):
+	def __init__(self, driver: WebDriver, book_name: str):
+		self.driver = driver
+		self.book_name = book_name
+
+
+	def scrape(self, leagues: list) -> list:
+		'''
+		Get's all the picks and their odds for this sports book in the given leagues.
+
+		Navigates a sports book and for each league, starting from the league's base URL,
+		scrapes a list of every possible picks and it's odds for each event happening in 
+		the requested leagues.
+
+		Args:
+			leagues (list): a list of the desired leagues to get odds data from.
+
+		Returns:
+			list: sportsbook odds
+		'''
+		picks = []
+		for league in leagues:
+			try:
+				league_picks = self._scrape_league(league)
+				picks.extend(league_picks)
+			except Exception as e:
+				print(f'Error getting picks for league {league}: {e}')
+
+		self.driver.close()
+		return picks
+
+
+	@staticmethod
+	def _create_pick(event_title, book_name, league, pick_type, 
+					  team, line, odds, player, prop) -> dict:
+		'''
+		Creates a pick dictionary with a unique key based on the input parameters.
+
+		Args:
+			event_title (str): The title of the sporting event.
+			book_name (str): The name of the sportsbook.
+			league (str): The league associated with the event.
+			pick_type (str): The type of pick (e.g., spread, moneyline, total).
+			team (str): The team associated with the pick.
+			line (str): The betting line for the pick.
+			odds (str): The odds associated with the pick.
+			player (str): The player associated with the pick, if any.
+			prop (str): The prop associated with the pick, if any.
+
+		Returns:
+			dict: A dictionary containing the pick details, including a unique key and timestamp.
+		
+		Note:
+			The unique key is generated using a SHA-256 hash of a string formed by concatenating
+			the input parameters with underscores. The timestamp is the current datetime.
+		'''
+		pick_values = [event_title, league, pick_type,
+					   team, line, odds, player, prop]
+
+		pick_string = '_'.join(str(p) if p is not None else '' for p in pick_values)
+		key = hashlib.sha256(pick_string.encode()).hexdigest()
+		timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+		return {
+			'event': event_title,
+			'key': key,
+			'book': book_name,
+			'league': league,
+			'type': pick_type,
+			'team': team,
+			'line': line,
+			'odds': odds,
+			'player': player,
+			'prop': prop,
+			'timestamp': timestamp,
+		}
+
+	def _get_base_url(self, league) -> str:
+		'''
+		Gets the base URL that the driver should navigate to in order
+		to locate all of the event odds,
+		
+		Args:
+			sportsbook (str): Sports book domain for the URL.
+			league (str): The sports league.
+			
+		Returns:
+				str: Base url for the league page for the given sportsbook.
+		'''
+		return BOOKS[self.book_name][league]
+	
+	@staticmethod
+	def _get_team_abbreviation(team_name):
+		'''
+		Converts any form of team name into its 3-letter abbreviation.
+
+		Args:
+			team_name (str): The team name to convert.
+			
+		Returns:
+			str: The 3-letter abbreviation of the team.
+		'''
+		return TEAM_ACRONYNMS[team_name]
+
+
+	@staticmethod
+	@abstractmethod
+	def _format_event_datetime(self, date: str, time: str) -> str:
+		'''
+		Converts a date in a specific format according to the sportsbook
+		into the general format YYYY-MM-DD.
+
+		Args:
+			date (str): event date.
+			time (str): event time.
+		
+		Returns:
+			str: formatted date in the format YYYY-MM-DD.
+		'''
+		pass
+
+
+	@abstractmethod
+	def _get_event_info(self, html: str) -> str:
+		'''
+		Gets the event information from an event page on the sports book.
+
+		Args:
+			html (str): the raw HTML of the event page. 
+
+		Returns:
+			tuple: Away, Home, Datetime
+		'''
+		pass
+
+
+	@abstractmethod
+	def _scrape_league(self, league: str) -> list:
+		'''Scrapes all the possible picks and their odds for the league on this sports book.'''
+		pass
+		 
+
+	@abstractmethod
+	def _scrape_event(self, league: str) -> list:
+		'''
+		Scrapes an event page for a certain sports book. 
+
+		This function scrapes all of the available game and player prop odds
+		for this event, and stores the data in a list.
+
+		Args:
+			league (str): the sports league of the event.
+
+		Returns:
+			list: all available betting options for an event.
+		'''
+		pass
+
+	@abstractmethod
+	def _scrape_block(self, block, league, event_title) -> str:
+		pass
+
+
+BOOKS = {
 	'Caesars': {
 		'NBA': 'https://sportsbook.caesars.com/us/il/bet/basketball/events/'
 	},
@@ -12,7 +181,7 @@ books = {
 	'ESPNBet': {}
 }
 
-target_props = {
+PROPS = {
 	'Caesars': {},
 	'DraftKings': {},
 	'BetMGM': {
@@ -28,7 +197,7 @@ target_props = {
 	'ESPNBet': {}
 }
 
-team_acronyms = {
+TEAM_ACRONYNMS = {
 	# NBA
 	'ATLANTA HAWKS': 'ATL', 'ATLANTA': 'ATL', 'HAWKS': 'ATL', 'ATL': 'ATL',
 	'BOSTON CELTICS': 'BOS', 'BOSTON': 'BOS', 'CELTICS': 'BOS', 'BOS': 'BOS',
