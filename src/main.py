@@ -8,7 +8,10 @@ import os
 
 def get_chrome_options():
     chrome_options = Options()
+
     chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-logging")
+    chrome_options.add_argument("--log-level=3")
     
     # Set a user-agent string
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"

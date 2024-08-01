@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import hashlib
 import itertools
+import time
 
 from scraper.exceptions import (
     ScraperError, 
@@ -23,7 +24,7 @@ __all__ = [
     'ABC', 'abstractmethod',
     'WebDriver', 'WebElement', 'WebDriverWait',
     'By', 'EC', 'BeautifulSoup',
-    'datetime', 'timedelta',
+    'datetime', 'timedelta', 'time',
     'hashlib', 'itertools',
     'ScraperError', 'LeagueNotFoundError', 'EventNotFoundError', 
     'BlockNotFoundError', 'StaleElementReferenceException',

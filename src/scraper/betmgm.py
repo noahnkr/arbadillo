@@ -60,30 +60,43 @@ class BetMGMScraper(BookScraper):
                 EC.presence_of_element_located((By.CSS_SELECTOR, 'main'))
             )
 
-            # Wait for each clickable event to load
-            events = WebDriverWait(self.driver, 10).until(
-                EC.presence_of_all_elements_located(
-                    (By.CSS_SELECTOR, 'ms-six-pack-event.grid-event')
-                )
-            )
         except Exception as e:
             raise LeagueNotFoundError(f'Error loading league page for {league}') from e
 
-        for event in events:
-            try:
-                event.click()
-                self._scrape_event(league, league_picks)
-                self.driver.back()
-                # Wait for events to load back in
-                WebDriverWait(self.driver, 10).until(
-                    EC.presence_of_all_elements_located(
-                        (By.CSS_SELECTOR, 'ms-six-pack-event.grid-event')
-                    )
+        try:
+            # Wait for each clickable event to load
+            events = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_all_elements_located(
+                    (By.CSS_SELECTOR, 'a.grid-info-wrapper')
                 )
-            except ScraperError as e:
-                print(f'Error scraping event in {league}: {e}')
-            except Exception as e:
-                print(f'Unexpected error in league {league}: {e}')
+            )
+            exepected_length = len(events)
+
+            for i in range(exepected_length):
+                try:
+                    max_retries = 3
+                    for _ in range(max_retries):
+                        # Re-find the event element to avoid stale element reference
+                        events = WebDriverWait(self.driver, 10).until(
+                            EC.presence_of_all_elements_located(
+                                (By.CSS_SELECTOR, 'a.grid-info-wrapper')
+                            )
+                        )
+                        if len(events) != exepected_length:
+                            print('Not all events loaded. Refreshing...')
+                            self.driver.refresh()
+
+                    event = events[i]
+                    event.click()
+                    self._scrape_event(league, league_picks)
+                    self.driver.back()
+                except ScraperError as e:
+                    print(f'Error scraping event in {league}: {e}')
+                except Exception as e:
+                    print(f'Unexpected error in league {league}: {e}')
+
+        except Exception as e:
+            print(f'Error loading events in {league}: {e}')
 
         return league_picks
 
@@ -144,16 +157,22 @@ class BetMGMScraper(BookScraper):
             print(f'Error clicking show more button in event {event}: {e}')
 
         try:
-            block_title = block.find_element(By.CSS_SELECTOR, 'span.market-name').text.upper()
+            block_title = block.find_element(By.CSS_SELECTOR, 'div.header-content').text.upper()
+        except NoSuchElementException as e:
+            raise BlockNotFoundError(f'Block title not found in event {event}')
+        except Exception as e:
+            raise BlockNotFoundError(f'Error getting block title in event {event}') from e
+
+        try:
             block_type = (
                 block.find_element(By.CSS_SELECTOR, 'div.option-group-container')
                      .get_attribute('class')
                      .split()[1]
             )
         except NoSuchElementException as e:
-            raise BlockNotFoundError(f'Block title and/or type not found in event {event}')
+            raise BlockNotFoundError(f'Block type not found in event {event} for block {block_title}')
         except Exception as e:
-            raise BlockNotFoundError(f'Error getting block title and/or type in event {event}') from e
+            raise BlockNotFoundError(f'Error getting block type in event {event} for block {block_title}') from e
 
         block_html = block.get_attribute('innerHTML')
         soup = BeautifulSoup(block_html, 'lxml')
@@ -166,7 +185,7 @@ class BetMGMScraper(BookScraper):
             case 'player-props-container':
                 self._scrape_player_prop_container(soup, league, event, block_title, picks)
             case _:
-                print(f'Unsupported block type: {block_type}')
+                raise ValueError(f'Unsupported Block type: {block_type}')
 
 
     def _scrape_game_line_container(
@@ -246,7 +265,7 @@ class BetMGMScraper(BookScraper):
             self, soup: BeautifulSoup, league: str, 
             event: str, block_title: str, picks: list) -> None:
         players = soup.find_all('div', class_='player-props-player-name')
-        options = option.find_all('ms-event-pick', class_='option-pick')
+        options = soup.find_all('ms-event-pick', class_='option-pick')
         pick_type = 'PLAYER-PROP'
         for i, option in enumerate(options):
             try:
