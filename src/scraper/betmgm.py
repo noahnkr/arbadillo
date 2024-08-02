@@ -56,7 +56,7 @@ class BetMGMScraper(BookScraper):
 
         try:
             # Wait for main content to load
-            WebDriverWait(self.driver, 10).until(
+            self.wait.until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, 'main'))
             )
 
@@ -65,7 +65,7 @@ class BetMGMScraper(BookScraper):
 
         try:
             # Wait for each clickable event to load
-            events = WebDriverWait(self.driver, 10).until(
+            events = self.wait.until(
                 EC.presence_of_all_elements_located(
                     (By.CSS_SELECTOR, 'a.grid-info-wrapper')
                 )
@@ -77,18 +77,20 @@ class BetMGMScraper(BookScraper):
                     max_retries = 3
                     for _ in range(max_retries):
                         # Re-find the event element to avoid stale element reference
-                        events = WebDriverWait(self.driver, 10).until(
+                        events = self.wait.until(
                             EC.presence_of_all_elements_located(
                                 (By.CSS_SELECTOR, 'a.grid-info-wrapper')
                             )
                         )
                         if len(events) != exepected_length:
                             print('Not all events loaded. Refreshing...')
-                            self.driver.refresh()
+                            self.driver.implicitly_wait(3)
 
                     event = events[i]
                     event.click()
-                    self._scrape_event(league, league_picks)
+                    league_picks.extend(
+                        self._scrape_event(league)
+                    )
                     self.driver.back()
                 except ScraperError as e:
                     print(f'Error scraping event in {league}: {e}')
@@ -101,10 +103,11 @@ class BetMGMScraper(BookScraper):
         return league_picks
 
 
-    def _scrape_event(self, league: str, picks: list) -> None:
+    def _scrape_event(self, league: str) -> list:
+        event_picks = []
         try:
             # Wait for game header to load
-            WebDriverWait(self.driver, 10).until(
+            self.wait.until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, 'div.main-score-container'))
             )
 
@@ -115,7 +118,7 @@ class BetMGMScraper(BookScraper):
 
             print(f'Scraping event: {event}')
 
-            blocks = WebDriverWait(self.driver, 10).until(
+            blocks = self.wait.until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'ms-option-panel.option-panel'))
             )
         except Exception as e:
@@ -124,14 +127,19 @@ class BetMGMScraper(BookScraper):
 
         for block in blocks:
             try:
-                self._scrape_block(block, league, event, picks)
+                event_picks.extend(
+                    self._scrape_block(block, league, event)
+                )
             except BlockNotFoundError as e:
                 print(f'Error scraping block in event {event}: {e}')
             except Exception as e:
                 print(f'Unexpected error in event {event}: {e}')
+        
+        return event_picks
 
 
-    def _scrape_block(self, block: WebElement, league: str, event: str, picks: list) -> None:
+    def _scrape_block(self, block: WebElement, league: str, event: str) -> list:
+        block_picks = []
         # Expand block if it is closed
         try:
             is_closed = (
@@ -179,20 +187,29 @@ class BetMGMScraper(BookScraper):
 
         match block_type:
             case 'six-pack-container':
-                self._scrape_game_line_container(soup, league, event, block_title, picks)
+                block_picks.extend(
+                    self._scrape_game_line_container(soup, league, event, block_title)
+                )
             case 'over-under-container':
-                self._scrape_over_under_container(soup, league, event, block_title, picks)
+                block_picks.extend(
+                    self._scrape_over_under_container(soup, league, event, block_title)
+                )
             case 'player-props-container':
-                self._scrape_player_prop_container(soup, league, event, block_title, picks)
+                block_picks.extend(
+                    self._scrape_player_prop_container(soup, league, event, block_title)
+                )
             case _:
                 raise ValueError(f'Unsupported Block type: {block_type}')
+
+        return block_picks
 
 
     def _scrape_game_line_container(
             self, soup: BeautifulSoup, league: str,
-            event: str, block_title: str, picks: list) -> None:
-        rows = soup.find_all('div', class_='option-row')
+            event: str, block_title: str) -> list:
+        game_lines = []
 
+        rows = soup.find_all('div', class_='option-row')
         if len(rows) != 2:
             raise ValueError('Game lines must have 2 rows.')
 
@@ -221,17 +238,21 @@ class BetMGMScraper(BookScraper):
 
                         pick = self._create_pick(event, self.book_name, league, pick_type,
                                                  team, line, odds, None, None)
-                        picks.append(pick)
+                        game_lines.append(pick)
 
                     except Exception as e:
                         print(f'Error with option in block {block_title} (game-lines): {e}')
             except Exception as e:
                 print(f'Error getting team name in block {block_title} (game-lines): {e}')
 
+        return game_lines
+
             
     def _scrape_over_under_container(
             self, soup: BeautifulSoup, league: str,
-            event: str, block_title: str, picks: list) -> None:
+            event: str, block_title: str) -> list:
+        over_unders = []
+
         if ':' in block_title:
             title_parts = block_title.split(':')
             team = self._get_team_abbreviation(title_parts[0].strip())
@@ -255,15 +276,19 @@ class BetMGMScraper(BookScraper):
                             .strip()
                     )
                     pick = self._create_pick(event, self.book_name, league, pick_type,
-                                             team, line, odds, None, None)
-                    picks.append(pick)
+                                                team, line, odds, None, None)
+                    over_unders.append(pick)
             except Exception as e:
                 print(f'Error with option in block {pick_type} (over-under): {e}')
+
+        return over_unders
 
 
     def _scrape_player_prop_container(
             self, soup: BeautifulSoup, league: str, 
-            event: str, block_title: str, picks: list) -> None:
+            event: str, block_title: str) -> list:
+        player_props = []
+
         players = soup.find_all('div', class_='player-props-player-name')
         options = soup.find_all('ms-event-pick', class_='option-pick')
         pick_type = 'PLAYER-PROP'
@@ -284,6 +309,8 @@ class BetMGMScraper(BookScraper):
                 )
                 pick = self._create_pick(event, self.book_name, league, pick_type,
                                          None, line, odds, player, prop)
-                picks.append(pick)
+                player_props.append(pick)
             except Exception as e:
                 print(f'Error with option in block {block_title} (player-prop): {e}')
+    
+        return player_props

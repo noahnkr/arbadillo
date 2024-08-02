@@ -4,6 +4,7 @@ class BookScraper(ABC):
 	def __init__(self, driver: WebDriver, book_name: str):
 		self.driver = driver
 		self.book_name = book_name
+		self.wait = WebDriverWait(self.driver, 10)
 
 
 	def scrape(self, leagues: list) -> list:
