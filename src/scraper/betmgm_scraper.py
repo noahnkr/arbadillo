@@ -1,7 +1,6 @@
 from . import *
-from scraper.sportsbook import BookScraper
 
-class BetMGMScraper(BookScraper):
+class BetMGMScraper(BaseScraper):
     def __init__(self, driver: WebDriver):
         super().__init__(driver, 'BetMGM')
 

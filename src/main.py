@@ -2,9 +2,9 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from scraper.betmgm import BetMGMScraper
-import json
+import csv
 import os
+from scraper import *
 
 def get_chrome_options():
     chrome_options = Options()
@@ -52,9 +52,13 @@ def main():
     if not os.path.exists(PATH):
         os.makedirs(PATH)
 
-    with open('data/export.json', 'w') as file:
-        json.dump(data, file, indent=4)
-
+    with open('data/export.csv', 'w') as file:
+        fields = ['id', 'event', 'book', 'league',
+                  'type', 'team', 'line', 'odds',
+                  'player', 'prop', 'timestamp']
+        writer = csv.DictWriter(file, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(data)
 
 if __name__ == '__main__':
     main()

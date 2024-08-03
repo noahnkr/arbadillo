@@ -1,3 +1,8 @@
+# Invalid input exception.
+class InputError(Exception):
+	pass
+
+# Exceptions that happen during webscraping
 class ScraperError(Exception):
 	pass
 
