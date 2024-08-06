@@ -9,7 +9,7 @@ from scraper import *
 def get_chrome_options():
     chrome_options = Options()
 
-    chrome_options.add_argument("--headless")
+    #chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-logging")
     chrome_options.add_argument("--log-level=3")
     
@@ -46,14 +46,15 @@ def main():
     service = ChromeService(executable_path=ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     scraper = BetMGMScraper(driver)
-    data = scraper.scrape(['MLB'])
+    leagues = ['mlb']
+    data = scraper.scrape(leagues)
 
     PATH = './data'
     if not os.path.exists(PATH):
         os.makedirs(PATH)
 
     with open('data/export.csv', 'w') as file:
-        fields = ['id', 'event', 'book', 'league',
+        fields = ['pick_hash', 'event', 'book', 'league',
                   'type', 'team', 'line', 'odds',
                   'player', 'prop', 'timestamp']
         writer = csv.DictWriter(file, fieldnames=fields)

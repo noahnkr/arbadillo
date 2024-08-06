@@ -1,4 +1,4 @@
-LEAGUES = {'nba' 'mlb', 'nfl'}
+LEAGUES = {'nba', 'mlb', 'nfl'}
 
 BOOKS = {'fanduel', 'caesars', 'draftkings', 'betmgm', 'betrivers', 'pointsbet', 'espnbet'}
 
@@ -16,7 +16,7 @@ BOOK_BASE_URL = {
 	'caesars': {},
 	'draftkings': {},
 	'betmgm': {
-        'MLB': 'https://sports.il.betmgm.com/en/sports/baseball-23/betting/usa-9/mlb-75',
+        'mlb': 'https://sports.il.betmgm.com/en/sports/baseball-23/betting/usa-9/mlb-75',
 	},
 	'betrivers': {},
 	'pointsbet': {},
@@ -126,7 +126,7 @@ TEAM_ACRONYMS = {
 	'SAN DIEGO PADRES': 'SD', 'SAN DIEGO': 'SD', 'PADRES': 'SD', 'SD': 'SD',
 	'SAN FRANCISCO GIANTS': 'SF', 'SAN FRANCISCO': 'SF', 'GIANTS': 'SF', 'SF': 'SF',
 	'SEATTLE MARINERS': 'SEA', 'SEATTLE': 'SEA', 'MARINERS': 'SEA', 'SEA': 'SEA',
-	'ST. LOUIS CARDINALS': 'STL', 'ST LOUIS': 'STL', 'CARDINALS': 'STL', 'STL': 'STL',
+	'ST. LOUIS CARDINALS': 'STL', 'ST LOUIS': 'STL', 'ST. LOUIS': 'STL', 'CARDINALS': 'STL', 'STL': 'STL',
 	'TAMPA BAY RAYS': 'TB', 'TAMPA BAY': 'TB', 'RAYS': 'TB', 'TB': 'TB',
 	'TEXAS RANGERS': 'TEX', 'TEXAS': 'TEX', 'RANGERS': 'TEX', 'TEX': 'TEX',
 	'TORONTO BLUE JAYS': 'TOR', 'TORONTO': 'TOR', 'BLUE JAYS': 'TOR', 'TOR': 'TOR',

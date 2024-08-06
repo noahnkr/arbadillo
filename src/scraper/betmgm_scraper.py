@@ -1,8 +1,26 @@
-from . import *
+from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.common.exceptions import (
+    StaleElementReferenceException, NoSuchElementException
+)
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
+import hashlib
+import time
+
+from .base_scraper import BaseScraper
+from .exceptions import (
+    InputError, ScraperError, LeagueNotFoundError,
+    EventNotFoundError, BlockNotFoundError,
+)
+from .utils import LEAGUES, TEAM_ACRONYMS, BOOK_BASE_URL
 
 class BetMGMScraper(BaseScraper):
     def __init__(self, driver: WebDriver):
-        super().__init__(driver, 'BetMGM')
+        super().__init__(driver, 'betmgm')
 
     def _get_event_info(self, soup: BeautifulSoup) -> tuple:
         participants = soup.find_all('div', class_='participant-name')
@@ -25,7 +43,7 @@ class BetMGMScraper(BaseScraper):
             try:
                 datetime_ = self._format_event_datetime(date, time)
             except Exception as e:
-                print(f'Error formatting event datetime: {e}')
+                print(f'Error formatting event datetime: {type(e).__name__} - {e}')
                 date = datetime.today().strftime('%Y-%m-%d')
                 datetime_ = f'{date}_LIVE'
         else:
@@ -70,7 +88,6 @@ class BetMGMScraper(BaseScraper):
                 )
             )
             exepected_length = len(events)
-
             for i in range(exepected_length):
                 try:
                     max_retries = 3
@@ -82,8 +99,10 @@ class BetMGMScraper(BaseScraper):
                             )
                         )
                         if len(events) != exepected_length:
-                            print('Not all events loaded. Refreshing...')
-                            self.driver.implicitly_wait(3)
+                            print('Not all events loaded. Waiting...')
+                            time.sleep(3)
+                        else:
+                            break
 
                     event = events[i]
                     event.click()
@@ -92,12 +111,12 @@ class BetMGMScraper(BaseScraper):
                     )
                     self.driver.back()
                 except ScraperError as e:
-                    print(f'Error scraping event in {league}: {e}')
+                    print(f'Error scraping event in {league}: {type(e).__name__} - {e}')
                 except Exception as e:
-                    print(f'Unexpected error in league {league}: {e}')
+                    print(f'Unexpected error in league {league}: {type(e).__name__} - {e}')
 
         except Exception as e:
-            print(f'Error loading events in {league}: {e}')
+            print(f'Error loading events in {league}: {type(e).__name__} - {e}')
 
         return league_picks
 
@@ -130,9 +149,9 @@ class BetMGMScraper(BaseScraper):
                     self._scrape_block(block, league, event)
                 )
             except BlockNotFoundError as e:
-                print(f'Error scraping block in event {event}: {e}')
+                print(f'Error scraping block in event {event}: {type(e).__name__} - {e}')
             except Exception as e:
-                print(f'Unexpected error in event {event}: {e}')
+                print(f'Unexpected error in event {event}: {type(e).__name__} - {e}')
         
         return event_picks
 
@@ -151,7 +170,7 @@ class BetMGMScraper(BaseScraper):
         except NoSuchElementException:
             print(f'Expand button not found in event {event}')
         except Exception as e:
-            print(f'Error expanding block in event {event}: {e}')
+            print(f'Error expanding block in event {event}: {type(e).__name__} - {e}')
 
         # If there is a show more button, click it
         try:
@@ -161,7 +180,7 @@ class BetMGMScraper(BaseScraper):
         except NoSuchElementException:
             print(f'Show more button not found in event {event}')
         except Exception as e:
-            print(f'Error clicking show more button in event {event}: {e}')
+            print(f'Error clicking show more button in event {event}: {type(e).__name__} - {e}')
 
         try:
             block_title = block.find_element(By.CSS_SELECTOR, 'div.header-content').text.upper()
@@ -230,19 +249,21 @@ class BetMGMScraper(BaseScraper):
                             pick_type = 'OVER' if 'O' in name.text else 'UNDER'
                             line = float(name.text.replace('O', '').replace('U', '').strip())
                             odds = int(value.text.replace('+', ''))
-                        else:
+                        elif value:
                             pick_type = 'MONEYLINE'
                             line = None
                             odds = int(value.text.replace('+', ''))
-
+                        else:
+                            # Pick is locked
+                            continue
                         pick = self._create_pick(event, self.book_name, league, pick_type,
                                                  team, line, odds, None, None)
                         game_lines.append(pick)
 
                     except Exception as e:
-                        print(f'Error with option in block {block_title} (game-lines): {e}')
+                        print(f'Error with option in block {block_title} (game-lines): {type(e).__name__} - {e}')
             except Exception as e:
-                print(f'Error getting team name in block {block_title} (game-lines): {e}')
+                print(f'Error getting team name in block {block_title} (game-lines): {type(e).__name__} - {e}')
 
         return game_lines
 
@@ -278,7 +299,7 @@ class BetMGMScraper(BaseScraper):
                                                 team, line, odds, None, None)
                     over_unders.append(pick)
             except Exception as e:
-                print(f'Error with option in block {pick_type} (over-under): {e}')
+                print(f'Error with option in block {pick_type} (over-under): {type(e).__name__} - {e}')
 
         return over_unders
 
@@ -310,6 +331,6 @@ class BetMGMScraper(BaseScraper):
                                          None, line, odds, player, prop)
                 player_props.append(pick)
             except Exception as e:
-                print(f'Error with option in block {block_title} (player-prop): {e}')
+                print(f'Error with option in block {block_title} (player-prop): {type(e).__name__} - {e}')
     
         return player_props
