@@ -1,165 +1,123 @@
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.common.exceptions import (
-    StaleElementReferenceException, NoSuchElementException
+    StaleElementReferenceException, NoSuchElementException, TimeoutException
 )
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
-import hashlib
 import time
 
 from .base_scraper import BaseScraper
-from .exceptions import (
+from .models import Event, Pick
+
+from ..exceptions import (
     InputError, ScraperError, LeagueNotFoundError,
     EventNotFoundError, BlockNotFoundError,
+    UnsupportedBlockType
 )
-from .utils import LEAGUES, TEAM_ACRONYMS, BOOK_BASE_URL
 
 class BetMGMScraper(BaseScraper):
     def __init__(self, driver: WebDriver):
         super().__init__(driver, 'betmgm')
 
-    def _get_event_info(self, soup: BeautifulSoup) -> tuple:
-        participants = soup.find_all('div', class_='participant-name')
-        if len(participants) < 2:
-            raise ValueError('Not enough participant information found')
+    def _get_event_info(self, soup: BeautifulSoup):
+        try:
+            event_info = soup.find('ms-event-info', class_='grid-event-info')
+            starting_time = event_info.find('ms-prematch-timer', class_='starting-time')
 
-        participant1 = self._get_team_abbreviation(
-            participants[0].text.strip().upper()
-        )
-        participant2 = self._get_team_abbreviation(
-            participants[1].text.strip().upper()
-        )
-
-        date_element = soup.find('span', class_='date')
-        time_element = soup.find('span', class_='time')
-
-        if date_element and time_element:
-            date = date_element.text.strip()
-            time = time_element.text.strip()
-            try:
-                datetime_ = self._format_event_datetime(date, time)
-            except Exception as e:
-                print(f'Error formatting event datetime: {type(e).__name__} - {e}')
+            if starting_time:
+                active = False
+                time_parts = starting_time.text.split('•')
+                date = time_parts[0].strip()
+                time = time[1].strip()
+            else:
+                active = True
                 date = datetime.today().strftime('%Y-%m-%d')
-                datetime_ = f'{date}_LIVE'
-        else:
-            date = datetime.today().strftime('%Y-%m-%d')
-            datetime_ = f'{date}_LIVE'
+                time = None
 
-        return participant1, participant2, datetime_
+            event_time = self._format_event_time(date, time)
 
-
-    def _format_event_datetime(self, date: str, time: str) -> str:
-        if date.lower() == 'today':
-            date = datetime.now().date()
-        elif date.lower() == 'tomorrow':
-            date = (datetime.now() + timedelta(1)).date()
-        else:
-            date = datetime.strptime(date, '%m/%d/%y').date()
+            participants = event_info.find_all('div', class_='participant')
+            if len(participants) == 2:
+                away_team = self._get_team_abbreviation(participants[0].text.strip())
+                home_team = self._get_team_abbreviation(participants[1].text.strip())
+            else:
+                raise ValueError('Missing participant information.')
         
-        time = datetime.strptime(time, '%I:%M %p').time()
-        formatted_datetime = datetime.combine(date, time)
-        return formatted_datetime.strftime('%Y-%m-%d_%H:%M')
+            return away_team, home_team, event_time, active
+        except AttributeError as e:
+            raise ScraperError(f'Error parsing event info: {e}')
 
+    def _format_event_time(date, time=None):
+        if date == 'Today':
+            event_time = datetime.today().date()
+        elif date == 'Tomorrow':
+            event_time = (datetime.today() + timedelta(1)).date()
+        else:
+            event_time = datetime.strptime(date, '%m/%d/%y').date()
 
-    def _scrape_league(self, league: str) -> list:
-        league_picks = []
-        league_url = self._get_base_url(league)
+        if time:
+            time = datetime.strptime(time, '%I:%M %p').time()
+            event_time = datetime.combine(event_time, time)
+
+        return event_time.isoformat()
+
+    def scrape_odds(self, league, events):
+        league_url = self._get_book_base_url(self.book_name, league)
         self.driver.get(league_url)
 
-        try:
-            # Wait for main content to load
-            self.wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, 'main'))
-            )
-
-        except Exception as e:
-            raise LeagueNotFoundError(f'Error loading league page for {league}') from e
-
-        try:
-            # Wait for each clickable event to load
-            events = self.wait.until(
-                EC.presence_of_all_elements_located(
-                    (By.CSS_SELECTOR, 'a.grid-info-wrapper')
+        expected_length = len(events)
+        for i in range(expected_length):
+            try:
+                # Wait for all events to load.
+                scraped_events = self._load_events_with_retries(
+                    (By.CSS_SELECTOR, 'ms-six-pack-event.grid-event'), len(events)
                 )
-            )
-            exepected_length = len(events)
-            for i in range(exepected_length):
-                try:
-                    max_retries = 3
-                    for _ in range(max_retries):
-                        # Re-find the event element to avoid stale element reference
-                        events = self.wait.until(
-                            EC.presence_of_all_elements_located(
-                                (By.CSS_SELECTOR, 'a.grid-info-wrapper')
-                            )
-                        )
-                        if len(events) != exepected_length:
-                            print('Not all events loaded. Waiting...')
-                            time.sleep(3)
-                        else:
-                            break
+                event_html = scraped_events[i].get_attribute('innerHTML')
+                event_link = scraped_events[i].find_element(By.CSS_SELECTOR, 'a.grid-info-wrapper')
 
-                    event = events[i]
-                    event.click()
-                    league_picks.extend(
-                        self._scrape_event(league)
-                    )
-                    self.driver.back()
-                except ScraperError as e:
-                    print(f'Error scraping event in {league}: {type(e).__name__} - {e}')
-                except Exception as e:
-                    print(f'Unexpected error in league {league}: {type(e).__name__} - {e}')
+                soup = BeautifulSoup(event_html, 'lxml')
+                event_info = self._get_event_info(soup)
 
-        except Exception as e:
-            print(f'Error loading events in {league}: {type(e).__name__} - {e}')
+                event_link.click()
+                picks = self._scrape_event(event_info)
+                self._add_picks_to_matching_event(events, event_info[0], event_info[1], event_info[2], picks)
+                self.driver.back()
+            except ScraperError as e:
+                print(f'ScraperError while scraping events in {league}: {type(e).__name__} - {e}')
+            except Exception as e:
+                print(f'Unexpected error while scraping events in {league}: {type(e).__name__} - {e}')
 
-        return league_picks
-
-
-    def _scrape_event(self, league: str) -> list:
+    def _scrape_event(self, event_info):
         event_picks = []
         try:
             # Wait for game header to load
-            self.wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, 'div.main-score-container'))
-            )
-
-            html = self.driver.page_source
-            soup = BeautifulSoup(html, 'lxml')
-            away, home, datetime_ = self._get_event_info(soup)
-            event = f'{away}@{home}_{datetime_}'
-
-            print(f'Scraping event: {event}')
-
             blocks = self.wait.until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'ms-option-panel.option-panel'))
             )
-        except Exception as e:
-            raise EventNotFoundError(f"Error loading event page for league {league}") from e
-
+        except TimeoutException as e:
+            raise EventNotFoundError(f'Unable to load event blocks in event {event_info[0]}@{event_info[1]}_{event_info[2]}') from e
 
         for block in blocks:
             try:
-                event_picks.extend(
-                    self._scrape_block(block, league, event)
-                )
+                event_picks.extend(self._scrape_block(block, event_info))
             except BlockNotFoundError as e:
-                print(f'Error scraping block in event {event}: {type(e).__name__} - {e}')
+                print(f'BlockNotFoundError in event {event_info[0]}@{event_info[1]}_{event_info[2]}: {e}')
             except Exception as e:
-                print(f'Unexpected error in event {event}: {type(e).__name__} - {e}')
-        
-        return event_picks
+                print(f'Unexpected error scraping block in event {event_info[0]}@{event_info[1]}_{event_info[2]}: {e}')
 
+        return {
+            'book_name': self.book_name,
+            'last_update': datetime.now().isoformat(),
+            'picks': [p.to_dict() for p in event_picks]
+        }
 
-    def _scrape_block(self, block: WebElement, league: str, event: str) -> list:
-        block_picks = []
-        # Expand block if it is closed
+    def _scrape_block(self, block: WebElement, event_info):
         try:
+            # Expand block if it is closed
             is_closed = (
                 block.find_element(By.CSS_SELECTOR, 'div.option-group-header-chevron span')
                      .get_attribute('class') == 'theme-down'
@@ -168,63 +126,50 @@ class BetMGMScraper(BaseScraper):
                 expand_button = block.find_element(By.CSS_SELECTOR, 'div.option-group-name.clickable')
                 expand_button.click()
         except NoSuchElementException:
-            print(f'Expand button not found in event {event}')
+            print(f'Expand button not found in event {event_info}')
         except Exception as e:
-            print(f'Error expanding block in event {event}: {type(e).__name__} - {e}')
+            print(f'Error expanding block in event {event_info}: {e}')
 
-        # If there is a show more button, click it
         try:
+            # If there is a show more button, click it
             show_more_button = block.find_elements(By.CSS_SELECTOR, 'div.show-more-less-button')
             if show_more_button:
                 show_more_button[0].click()
         except NoSuchElementException:
-            print(f'Show more button not found in event {event}')
+            print(f'Show more button not found in event {event_info}')
         except Exception as e:
-            print(f'Error clicking show more button in event {event}: {type(e).__name__} - {e}')
+            print(f'Error clicking show more button in event {event_info}: {e}')
 
         try:
+            # Get the block title
             block_title = block.find_element(By.CSS_SELECTOR, 'div.header-content').text.upper()
         except NoSuchElementException as e:
-            raise BlockNotFoundError(f'Block title not found in event {event}')
-        except Exception as e:
-            raise BlockNotFoundError(f'Error getting block title in event {event}') from e
+            raise BlockNotFoundError(f'Block title not found in event {event_info}') from e
 
         try:
+            # Determine block type and scrape accordingly
             block_type = (
                 block.find_element(By.CSS_SELECTOR, 'div.option-group-container')
                      .get_attribute('class')
                      .split()[1]
             )
         except NoSuchElementException as e:
-            raise BlockNotFoundError(f'Block type not found in event {event} for block {block_title}')
-        except Exception as e:
-            raise BlockNotFoundError(f'Error getting block type in event {event} for block {block_title}') from e
+            raise BlockNotFoundError(f'Block type not found in event {event_info} for block {block_title}') from e
 
         block_html = block.get_attribute('innerHTML')
         soup = BeautifulSoup(block_html, 'lxml')
 
         match block_type:
             case 'six-pack-container':
-                block_picks.extend(
-                    self._scrape_game_line_container(soup, league, event, block_title)
-                )
+                return self._scrape_six_pack_container(soup, block_title)
             case 'over-under-container':
-                block_picks.extend(
-                    self._scrape_over_under_container(soup, league, event, block_title)
-                )
+                return self._scrape_over_under_container(soup, block_title)
             case 'player-props-container':
-                block_picks.extend(
-                    self._scrape_player_prop_container(soup, league, event, block_title)
-                )
+                return self._scrape_player_prop_container(soup, block_title)
             case _:
-                raise ValueError(f'Unsupported Block type: {block_type}')
+                raise UnsupportedBlockType(f'Unsupported block type: {block_type}')
 
-        return block_picks
-
-
-    def _scrape_game_line_container(
-            self, soup: BeautifulSoup, league: str,
-            event: str, block_title: str) -> list:
+    def _scrape_six_pack_container(self, soup: BeautifulSoup, block_title):
         game_lines = []
 
         rows = soup.find_all('div', class_='option-row')
@@ -242,51 +187,52 @@ class BetMGMScraper(BaseScraper):
                         value = option.find('div', class_='value')
 
                         if name and ('+' in name.text or '-' in name.text):
-                            pick_type = 'SPREAD'
+                            market = 'spread'
+                            outcome = None
                             line = float(name.text.replace('+', ''))
                             odds = int(value.text.replace('+', ''))
                         elif name and ('O' in name.text or 'U' in name.text):
-                            pick_type = 'OVER' if 'O' in name.text else 'UNDER'
+                            market = 'total'
+                            outcome = 'over' if 'O' in name.text else 'under'
                             line = float(name.text.replace('O', '').replace('U', '').strip())
                             odds = int(value.text.replace('+', ''))
                         elif value:
-                            pick_type = 'MONEYLINE'
+                            market = 'moneyline'
+                            outcome = None
                             line = None
                             odds = int(value.text.replace('+', ''))
                         else:
-                            # Pick is locked
                             continue
-                        pick = self._create_pick(event, self.book_name, league, pick_type,
-                                                 team, line, odds, None, None)
-                        game_lines.append(pick)
+
+                        game_lines.append(
+                            Pick(market, team, line, odds, outcome)
+                        )
 
                     except Exception as e:
-                        print(f'Error with option in block {block_title} (game-lines): {type(e).__name__} - {e}')
+                        print(f'Error with option in block {block_title} (game-lines): {e}')
             except Exception as e:
-                print(f'Error getting team name in block {block_title} (game-lines): {type(e).__name__} - {e}')
+                print(f'Error getting team name in block {block_title} (game-lines): {e}')
 
         return game_lines
 
             
-    def _scrape_over_under_container(
-            self, soup: BeautifulSoup, league: str,
-            event: str, block_title: str) -> list:
+    def _scrape_over_under_container(self, soup: BeautifulSoup, block_title):
         over_unders = []
 
         if ':' in block_title:
             title_parts = block_title.split(':')
             team = self._get_team_abbreviation(title_parts[0].strip())
-            pick_title = title_parts[1].strip().replace(' ', '-')
+            market = title_parts[1].strip().replace(' ', '-')
         else:
             team = None
-            pick_title = block_title.strip().replace(' ', '-')
+            market = block_title.strip().replace(' ', '-')
 
         lines = soup.find_all('div', class_='attribute-key')
         options = soup.find_all('ms-option', class_='option')
         for i, option in enumerate(options):
             try:
                 line = float(lines[i // 2].text)
-                pick_type = f'{pick_title}_{'OVER' if i % 2 == 0 else 'UNDER'}'
+                outcome = 'over' if i % 2 == 0 else 'under'
 
                 option = option.find('ms-event-pick', class_='option-pick')
                 if option:
@@ -295,27 +241,23 @@ class BetMGMScraper(BaseScraper):
                             .replace('+', '')
                             .strip()
                     )
-                    pick = self._create_pick(event, self.book_name, league, pick_type,
-                                                team, line, odds, None, None)
-                    over_unders.append(pick)
+                    over_unders.append(
+                        Pick(market, team, line, odds, outcome)
+                    )
             except Exception as e:
-                print(f'Error with option in block {pick_type} (over-under): {type(e).__name__} - {e}')
+                print(f'Error with option in block {market} (over-under): {e}')
 
         return over_unders
 
-
-    def _scrape_player_prop_container(
-            self, soup: BeautifulSoup, league: str, 
-            event: str, block_title: str) -> list:
+    def _scrape_player_prop_container(self, soup: BeautifulSoup, block_title):
         player_props = []
 
         players = soup.find_all('div', class_='player-props-player-name')
         options = soup.find_all('ms-event-pick', class_='option-pick')
-        pick_type = 'PLAYER-PROP'
         for i, option in enumerate(options):
             try:
                 player = players[i // 2].text
-                prop = f'{block_title.replace(' ', '-')}_{'OVER' if i % 2 == 0 else 'UNDER'}'
+                prop = f'{block_title.replace(" ", "-")}_{"OVER" if i % 2 == 0 else "UNDER"}'
                 line = float(
                     option.find('div', class_='name').text
                         .replace('Over', '')
@@ -327,10 +269,10 @@ class BetMGMScraper(BaseScraper):
                         .replace('+', '')
                         .strip()
                 )
-                pick = self._create_pick(event, self.book_name, league, pick_type,
-                                         None, line, odds, player, prop)
-                player_props.append(pick)
+                player_props.append(
+                    Pick(None, None, line, odds, None, player, prop)
+                )
             except Exception as e:
-                print(f'Error with option in block {block_title} (player-prop): {type(e).__name__} - {e}')
-    
+                print(f'Error scraping option in block {block_title} (player-prop): {e}')
+
         return player_props

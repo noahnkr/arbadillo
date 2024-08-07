@@ -6,108 +6,116 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 from datetime import datetime
-import hashlib
+import time
 
-from .exceptions import InputError, ScraperError
-from .utils import LEAGUES, TEAM_ACRONYMS, BOOK_BASE_URL
+from .models import Event, Pick
+
+from ..exceptions import EventLengthMismatchError
+from ..utils import LEAGUES, TEAM_ACRONYMS, SCHEDULE_BASE_URL, BOOK_BASE_URL
 
 class BaseScraper(ABC):
-    def __init__(self, driver: WebDriver, book_name: str):
+    def __init__(self, driver: WebDriver, book_name):
         self.driver = driver
         self.book_name = book_name
         self.wait = WebDriverWait(self.driver, 10)
 
-    def scrape(self, leagues: list) -> list:
+    def scrape_league_events(self, league):
         '''
-        Get's all the picks and their odds for this sports book in the given leagues.
+        Scrapes the list of upcoming and active events for the specified league from the schedule page.
 
-        Navigates a sports book and for each league, starting from the league's base URL,
-        scrapes a list of every possible picks and it's odds for each event happening in 
-        the requested leagues.
+        This method navigates to the schedule page for the given league, parses the page to extract 
+        event information, and returns a list of Event objects representing these events.
 
         Args:
-            leagues (list): a list of the desired leagues to get odds data from.
+            league (str): The league for which to scrape events (e.g., 'mlb', 'nba').
 
         Returns:
-            list: sportsbook odds
+            list: A list of Event objects representing the upcoming and active events for the specified league.
         '''
-        picks = []
-        for league in leagues:
-            try:
-                if league not in LEAGUES:
-                    raise InputError(f'League `{league}` not supported.')
-                league_picks = self._scrape_league(league)
-                picks.extend(league_picks)
-            except ScraperError as e:
-                print(f'Error getting picks for league {league}: {e}')
-            except InputError as e:
-                print(e)
-            except Exception as e:
-                print(f'Unexpected error for league {league}: {e}')
+        events = []
+        schedule_url = self._get_schedule_base_url(league)
+        self.driver.get(schedule_url)
+        self.wait.until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.ResponsiveTable'))
+        )
+        html = self.driver.page_source
+        soup = BeautifulSoup(html, 'lxml')
 
-        self.driver.close()
-        return picks
+        tables = soup.find_all('div', class_='ResponsiveTable')
+        for table in tables:
+            date_text = table.find('div', class_='Table__Title').text.strip()
+            date = datetime.strptime(date_text, '%A, %B %d, %Y')
+
+            rows = table.find_all('tr', class_='Table__TR')
+            for row in rows:
+                participants = row.find_all('span', class_='Table__Team')
+                if len(participants) == 2:
+                    away = BaseScraper._get_team_abbreviation(participants[0].text.strip().upper())
+                    home = BaseScraper._get_team_abbreviation(participants[1].text.strip().upper())
+
+                    time_text = row.find('td', class_='date__col').text.strip()
+                    time = datetime.strptime(time_text, '%I:%M %p').time()
+                    event_time = datetime.combine(date, time).isoformat()
+                    # TODO: Handle live events
+                    events.append(Event(league, away, home, event_time))
+
+        return events
+    
+    def _load_events_with_retries(self, locator: tuple, expected_length, max_retries=3, wait_time=5):
+        '''
+        Attempts to load the list of events from the sportsbook page multiple times 
+        until the expected number of events is loaded or the maximum number of retries is reached.
+
+        Args:
+            locator (tuple): Locator for the elements representing events on the page, used by Selenium.
+            expected_length (int): The expected number of event elements to be loaded.
+            max_retries (int): Maximum number of retry attempts if the expected number of events is not loaded.
+            wait_time (int): The amount of time to wait for events to load between retries.
+
+        Returns:
+            list: List of WebElement objects representing the loaded events.
+
+        Raises:
+            EventLengthMismatchError: If the expected number of events is not loaded within the maximum number of retries.
+        '''
+        for _ in range(max_retries):
+            scraped_events = self.wait.until(
+                EC.presence_of_all_elements_located(locator)
+            )
+            if len(scraped_events) != expected_length:
+                time.sleep(wait_time)
+            else:
+                return scraped_events
+        raise EventLengthMismatchError(f'Expected: {expected_length}, Actual: {len(scraped_events)}.')
+
 
     @staticmethod
-    def _create_pick(event: str, book: str, league: str, pick_type: str,
-                     team: str, line: float, odds: int, player: str, prop: str) -> dict:
+    def _add_picks_to_matching_event(events, away_team, home_team, event_time, picks):
         '''
-        Creates a pick dictionary with a unique hash based on the input parameters.
+        Appends the given picks to the matching event in the list of events.
 
-        A pick refers to an available betting option across sportsbooks. 
-        The `pick_hash` field helps identify if different picks from different sportsbooks 
-        are referring to the same betting option.
+        This method searches through the list of events and appends the provided picks 
+        to the event that matches the specified away team, home team, and event time.
 
         Args:
-            event (str): The title of the sporting event.
-            book (str): The name of the sportsbook.
-            league (str): The league associated with the event.
-            pick_type (str): The type of pick (e.g., spread, moneyline, total).
-            team (str): The team associated with the pick.
-            line (float): The betting line for the pick.
-            odds (int): The odds associated with the pick.
-            player (str): The player associated with the pick, if any.
-            prop (str): The prop bet associated with the pick, if any.
+            events (list): List of event dictionaries.
+            away_team (str): Abbreviation of the away team.
+            home_team (str): Abbreviation of the home team.
+            event_time (str): ISO formatted datetime string representing the event time.
+            picks (dict): Dictionary containing the picks to append to the matching event.
 
-        Returns:
-            dict: A dictionary containing the pick details, including:
-                - pick_hash (str): A SHA-256 hash generated from the input parameters.
-                - event (str): The title of the sporting event.
-                - book (str): The name of the sportsbook.
-                - league (str): The league associated with the event.
-                - type (str): The type of pick.
-                - team (str): The team associated with the pick.
-                - line (float): The betting line for the pick.
-                - odds (int): The odds associated with the pick.
-                - player (str): The player associated with the pick, if any.
-                - prop (str): The prop bet associated with the pick, if any.
-                - timestamp (str): The current datetime when the pick was created, in ISO 8601 format.
-
-        Note:
-            The `pick_hash` is generated using a SHA-256 hash of a string formed by concatenating
-            the input parameters with underscores. This helps in identifying if different picks
-            from different sportsbooks refer to the same betting option.
+        Raises:
+            ValueError: If no matching event is found in the list of events.
         '''
-        pick_values = [event, league, pick_type, team, line, odds, player, prop]
-        pick_string = '_'.join(str(p) if p is not None else '' for p in pick_values)
-        pick_hash = hashlib.sha256(pick_string.encode()).hexdigest()
-        timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+        criteria = {'away_team': away_team, 'home_team': home_team, 'event_time': event_time}
+        for e in events:
+            if all(e.get(k) == v for k, v in criteria.items()):
+                e['books'].append(picks)
+                return
+        raise ValueError('Matching event not found.')
 
-        return {
-            'pick_hash': pick_hash,
-            'event': event,
-            'book': book,
-            'league': league,
-            'type': pick_type,
-            'team': team,
-            'line': line,
-            'odds': odds,
-            'player': player,
-            'prop': prop,
-            'timestamp': timestamp,
-        }
-
-    def _get_base_url(self, league) -> str:
+    @staticmethod
+    def _get_book_base_url(book, league):
         '''
         Retrieves the base URL for the specified league from the stored book's base URLs.
 
@@ -115,6 +123,7 @@ class BaseScraper(ABC):
         for the given league in the `BOOK_BASE_URL` dictionary.
 
         Args:
+            book (str): The base URL of the sports book.
             league (str): The league for which to retrieve the base URL.
 
         Returns:
@@ -122,17 +131,22 @@ class BaseScraper(ABC):
 
         Raises:
             KeyError: If the book name or league does not exist in the `BOOK_BASE_URL` dictionary.
-
-        Example:
-            If `self.book_name` is "ExampleBook" and the `league` is "NFL", the method will look up
-            `BOOK_BASE_URL["ExampleBook"]["NFL"]` and return the corresponding URL.
-
-        Note:
-            Ensure that the `BOOK_BASE_URL` dictionary is properly populated with the base URLs
-            for all supported books and leagues.
         '''
-        return BOOK_BASE_URL[self.book_name][league]
-    
+        return BOOK_BASE_URL[book][league]
+
+    @staticmethod
+    def _get_schedule_base_url(league):
+        '''
+        Retrieves the base URL for the schedule of a given league.
+
+        Args:
+            league (str): The league for which to retrieve the schedule base URL.
+
+        Returns:
+            str: The base URL for the league's schedule.
+        '''
+        return SCHEDULE_BASE_URL[league]
+
     @staticmethod
     def _get_team_abbreviation(team_name):
         '''
@@ -148,54 +162,84 @@ class BaseScraper(ABC):
 
     @staticmethod
     @abstractmethod
-    def _format_event_datetime(date: str, time: str) -> str:
+    def _format_event_time(date, time=None):
         '''
-        Converts a date in a specific format according to the sportsbook
-        into the general format YYYY-MM-DD.
+        Converts a date and time from the sportsbook format into the general ISO 8601 format.
 
         Args:
-            date (str): event date.
-            time (str): event time.
-        
+            date (str): The date of the event. Can be in various formats such as 'Today', 'Tomorrow', or 'MM/DD/YY'.
+            time (str, optional): The time of the event. If not provided, the time will be set to the start of the day.
+
         Returns:
-            str: formatted date in the format YYYY-MM-DD.
+            str: The event date and time in ISO 8601 format (YYYY-MM-DDTHH:MM:SS).
         '''
         pass
 
     @abstractmethod
-    def _get_event_info(self, soup: BeautifulSoup) -> tuple:
+    def _get_event_info(self, soup: BeautifulSoup):
         '''
-        Gets the event information from an event page on the sports book.
+        Extracts event information from an event page on the sportsbook.
 
         Args:
-            soup (BeautifulSoup): parsed HTML content of the event page
+            soup (BeautifulSoup): Parsed HTML content of the event page.
 
         Returns:
-            tuple: Away, Home, Datetime
+            tuple: A tuple containing:
+                - away_team (str): Abbreviation of the away team.
+                - home_team (str): Abbreviation of the home team.
+                - event_time (str): Event time in ISO 8601 format.
+                - active (bool): A flag indicating if the event is currently active.
         '''
         pass
 
-    @abstractmethod
-    def _scrape_league(self, league: str) -> list:
-        '''Scrapes all the possible picks and their odds for the league on this sports book.'''
-        pass
 
     @abstractmethod
-    def _scrape_event(self, league: str, picks: list) -> None:
+    def scrape_odds(league, events):
         '''
-        Scrapes an event page for a certain sports book. 
+        Scrapes all the picks and their odds for this sportsbook in the given league.
 
-        This function scrapes all of the available game and player prop odds
-        for this event, and stores the data in a list.
+        Navigates the sportsbook and for each league, starting from the league's base URL,
+        scrapes a list of all possible picks and their odds for each event happening in the requested leagues.
 
         Args:
-            league (str): the sports league of the event.
+            league (str): The league for which to scrape odds data.
+            events (list): A list of Event objects representing the events to scrape.
 
-        Returns:
-            list: all available betting options for an event.
         '''
         pass
 
     @abstractmethod
-    def _scrape_block(self, block: WebElement, league: str, event: str, picks: list) -> None:
+    def _scrape_event(self, event_info):
+        '''
+        Scrapes an event page for a certain sportsbook.
+
+        This function scrapes all available game and player prop odds for this event,
+        and stores the data in a list.
+
+        Args:
+            event_info (tuple): A tuple containing:
+                - away_team (str): Abbreviation of the away team.
+                - home_team (str): Abbreviation of the home team.
+                - event_time (str): Event time in ISO 8601 format.
+
+        Returns:
+            dict: A dictionary containing the book name, last update time, and a list of all available betting options for the event.
+        '''
+        pass
+
+    @abstractmethod
+    def _scrape_block(self, block: WebElement, event_info):
+        '''
+        Scrapes betting options from a specific block element on the sportsbook page.
+
+        Args:
+            block (WebElement): The web element containing the betting options.
+            event_info (tuple): A tuple containing:
+                - away_team (str): Abbreviation of the away team.
+                - home_team (str): Abbreviation of the home team.
+                - event_time (str): Event time in ISO 8601 format.
+
+        Returns:
+            list: A list of all available betting options in this block.
+        '''
         pass

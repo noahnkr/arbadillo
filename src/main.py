@@ -2,14 +2,13 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-import csv
-import os
 from scraper import *
+from datetime import datetime
 
 def get_chrome_options():
     chrome_options = Options()
 
-    #chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-logging")
     chrome_options.add_argument("--log-level=3")
     
@@ -45,21 +44,30 @@ def main():
     chrome_options = get_chrome_options()
     service = ChromeService(executable_path=ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
-    scraper = BetMGMScraper(driver)
-    leagues = ['mlb']
-    data = scraper.scrape(leagues)
+    driver.maximize_window()
 
-    PATH = './data'
-    if not os.path.exists(PATH):
-        os.makedirs(PATH)
+    # Take an input of the requested leagues (Which will be all of them)
+    leagues = ['mlb', 'nba', 'nfl', 'premier_league']
 
-    with open('data/export.csv', 'w') as file:
-        fields = ['pick_hash', 'event', 'book', 'league',
-                  'type', 'team', 'line', 'odds',
-                  'player', 'prop', 'timestamp']
-        writer = csv.DictWriter(file, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(data)
+    # Instantiate implementations of BaseScraper
+    betmgm_scraper = BetMGMScraper(driver)
+    #fanduel_scraper = FanDuelScraper(driver)
+    #ceasars_scraper = CeasarsScraper(driver)
+    book_scrapers = [betmgm_scraper]
 
+    all_events = []
+
+    for league in leagues:
+        # Get a list of the events for the league from ESPN
+        events = BaseScraper.scrape_league_events(league)
+        for book in book_scrapers:
+            # Append this books picks to the list of events.
+            book.scrape_odds(league, events)
+        
+        # Once every book's picks has been added to the league's events, add these picks
+        # to the final list and continue to the next league.
+        all_events.extend(events)
+
+    driver.quit()
 if __name__ == '__main__':
     main()

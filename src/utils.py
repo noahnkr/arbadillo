@@ -1,5 +1,12 @@
 LEAGUES = {'nba', 'mlb', 'nfl'}
 
+SPORTS = {
+    'nfl': 'football',
+    'ncaaf': 'football',
+    'mlb': 'baseball',
+    'nba': 'basketball',
+}
+
 BOOKS = {'fanduel', 'caesars', 'draftkings', 'betmgm', 'betrivers', 'pointsbet', 'espnbet'}
 
 REGIONS = {'us', 'uk', 'au', 'eu'}
@@ -9,6 +16,10 @@ BOOK_REGIONS = {
 	'uk': {},
 	'au': {},
 	'eu': {},
+}
+
+SCHEDULE_BASE_URL = {
+    'mlb': 'https://www.espn.com/mlb/schedule'
 }
 
 BOOK_BASE_URL = {
@@ -23,15 +34,35 @@ BOOK_BASE_URL = {
 	'espnbet': {},
 }
 
-BOOK_PROPS = {
+MARKETS = {
+    'featured': {
+        'moneyline', 'spread', 'total',
+	},
+    'alternate': {
+		'alt_spread', 'alt_total', 'team_total', 
+	},
+    'baseball': {
+		# Batting Props
+		'batter_hits', 'batter_rbis', 'batter_total_bases', 'batter_runs', 
+		'batter_singles', 'batter_doubles', 'batter_triples', 'batter_home_runs', 
+		'batter_walks', 'batter_stolen_bases', 'batter_hits_runs_rbis'
+		# Pitching Props
+		'pitcher_outs', 'pitcher_strikeouts', 'pitcher_earned_runs', 'pitcher_walks',
+		'pitcher_hits_allowed',
+	},
+}
+
+BOOK_MARKETS = {
+	'fanduel': {},
 	'caesars': {},
 	'draftkings': {},
-	'betmgm': {},
-	'betmgm': {},
+	'betmgm': {
+	},
 	'betrivers': {},
 	'pointsbet': {},
 	'espnbet': {},
 }
+
 
 TEAM_ACRONYMS = {
 	# NBA
