@@ -8,7 +8,7 @@ from datetime import datetime
 def get_chrome_options():
     chrome_options = Options()
 
-    chrome_options.add_argument("--headless")
+    #chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-logging")
     chrome_options.add_argument("--log-level=3")
     
@@ -47,19 +47,19 @@ def main():
     driver.maximize_window()
 
     # Take an input of the requested leagues (Which will be all of them)
-    leagues = ['mlb', 'nba', 'nfl', 'premier_league']
+    leagues = ['mlb']
 
     # Instantiate implementations of BaseScraper
-    betmgm_scraper = BetMGMScraper(driver)
+    #betmgm_scraper = BetMGMScraper(driver)
+    draftkings_scraper = DraftKingsScraper(driver)
     #fanduel_scraper = FanDuelScraper(driver)
     #ceasars_scraper = CeasarsScraper(driver)
-    book_scrapers = [betmgm_scraper]
+    book_scrapers = [draftkings_scraper]
 
     all_events = []
-
     for league in leagues:
         # Get a list of the events for the league from ESPN
-        events = BaseScraper.scrape_league_events(league)
+        events = book_scrapers[0].scrape_league_events(league)
         for book in book_scrapers:
             # Append this books picks to the list of events.
             book.scrape_odds(league, events)

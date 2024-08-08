@@ -10,8 +10,8 @@ import time
 
 from .models import Event, Pick
 
-from ..exceptions import EventLengthMismatchError
-from ..utils import LEAGUES, TEAM_ACRONYMS, SCHEDULE_BASE_URL, BOOK_BASE_URL
+from exceptions import EventLengthMismatchError
+from utils import LEAGUES, TEAM_ACRONYMS, SCHEDULE_BASE_URL, BOOK_BASE_URL
 
 class BaseScraper(ABC):
     def __init__(self, driver: WebDriver, book_name):
@@ -21,7 +21,7 @@ class BaseScraper(ABC):
 
     def scrape_league_events(self, league):
         '''
-        Scrapes the list of upcoming and active events for the specified league from the schedule page.
+        Scrapes the list of upcoming and live events for the specified league from the schedule page.
 
         This method navigates to the schedule page for the given league, parses the page to extract 
         event information, and returns a list of Event objects representing these events.
@@ -30,7 +30,7 @@ class BaseScraper(ABC):
             league (str): The league for which to scrape events (e.g., 'mlb', 'nba').
 
         Returns:
-            list: A list of Event objects representing the upcoming and active events for the specified league.
+            list: A list of Event objects representing the upcoming and live events for the specified league.
         '''
         events = []
         schedule_url = self._get_schedule_base_url(league)
@@ -43,7 +43,11 @@ class BaseScraper(ABC):
 
         tables = soup.find_all('div', class_='ResponsiveTable')
         for table in tables:
-            date_text = table.find('div', class_='Table__Title').text.strip()
+            title_element = table.find('div', class_='Table__Title')
+            if title_element is None:
+                continue
+
+            date_text = title_element.text.strip()
             date = datetime.strptime(date_text, '%A, %B %d, %Y')
 
             rows = table.find_all('tr', class_='Table__TR')
@@ -53,14 +57,38 @@ class BaseScraper(ABC):
                     away = BaseScraper._get_team_abbreviation(participants[0].text.strip().upper())
                     home = BaseScraper._get_team_abbreviation(participants[1].text.strip().upper())
 
-                    time_text = row.find('td', class_='date__col').text.strip()
-                    time = datetime.strptime(time_text, '%I:%M %p').time()
-                    event_time = datetime.combine(date, time).isoformat()
-                    # TODO: Handle live events
-                    events.append(Event(league, away, home, event_time))
+                    time_element = row.find('td', class_='date__col')
+                    if time_element is None:
+                        continue
+
+                    time_text = time_element.text.strip()
+                    if time_text == 'LIVE':
+                        is_live = True
+                        start_time = date.isoformat()
+                    else:
+                        time = datetime.strptime(time_text, '%I:%M %p').time()
+                        is_live = False
+                        start_time = datetime.combine(date, time).isoformat()
+
+                    events.append(Event(league, away, home, start_time, is_live))
 
         return events
-    
+
+    def _fuzzy_find_event(self, events, event_info, min_tolerance=5):
+        away_team, home_team, start_time, is_live = event_info
+        start_time = datetime.fromisoformat(start_time)
+
+        for event in events:
+            event_start_time = datetime.fromisoformat(event.start_time)
+            time_difference = abs((event_start_time - start_time).total_seconds() / 60)
+            if (
+                event.away_team == away_team and 
+                event.home_team == home_team and 
+                time_difference <= min_tolerance and
+                event.is_live == is_live
+            ):
+                return event.away_team, event.home_team, event.start_time, event.is_live
+
     def _load_events_with_retries(self, locator: tuple, expected_length, max_retries=3, wait_time=5):
         '''
         Attempts to load the list of events from the sportsbook page multiple times 
@@ -88,9 +116,7 @@ class BaseScraper(ABC):
                 return scraped_events
         raise EventLengthMismatchError(f'Expected: {expected_length}, Actual: {len(scraped_events)}.')
 
-
-    @staticmethod
-    def _add_picks_to_matching_event(events, away_team, home_team, event_time, picks):
+    def _add_picks_to_matching_event(self, events, event_info, picks):
         '''
         Appends the given picks to the matching event in the list of events.
 
@@ -99,18 +125,23 @@ class BaseScraper(ABC):
 
         Args:
             events (list): List of event dictionaries.
-            away_team (str): Abbreviation of the away team.
-            home_team (str): Abbreviation of the home team.
-            event_time (str): ISO formatted datetime string representing the event time.
+            event_info (tuple): Tuple containing event information to match.
             picks (dict): Dictionary containing the picks to append to the matching event.
 
         Raises:
             ValueError: If no matching event is found in the list of events.
         '''
-        criteria = {'away_team': away_team, 'home_team': home_team, 'event_time': event_time}
+        criteria = {
+            'away_team': event_info[0], 'home_team': event_info[1], 
+            'start_time': event_info[2], 'is_live': event_info[3]
+        }
         for e in events:
             if all(e.get(k) == v for k, v in criteria.items()):
-                e['books'].append(picks)
+                e.books.append({
+                    'title': self.book_name,
+                    'last_update': datetime.now().isoformat(),
+                    'picks': [p.to_dict() for p in picks]
+                })
                 return
         raise ValueError('Matching event not found.')
 
@@ -188,13 +219,13 @@ class BaseScraper(ABC):
                 - away_team (str): Abbreviation of the away team.
                 - home_team (str): Abbreviation of the home team.
                 - event_time (str): Event time in ISO 8601 format.
-                - active (bool): A flag indicating if the event is currently active.
+                - is_live (bool): A flag indicating if the event is currently live.
         '''
         pass
 
 
     @abstractmethod
-    def scrape_odds(league, events):
+    def scrape_odds(self, league, events):
         '''
         Scrapes all the picks and their odds for this sportsbook in the given league.
 
@@ -220,7 +251,7 @@ class BaseScraper(ABC):
             event_info (tuple): A tuple containing:
                 - away_team (str): Abbreviation of the away team.
                 - home_team (str): Abbreviation of the home team.
-                - event_time (str): Event time in ISO 8601 format.
+                - start_time (str): Event time in ISO 8601 format.
 
         Returns:
             dict: A dictionary containing the book name, last update time, and a list of all available betting options for the event.
@@ -237,7 +268,7 @@ class BaseScraper(ABC):
             event_info (tuple): A tuple containing:
                 - away_team (str): Abbreviation of the away team.
                 - home_team (str): Abbreviation of the home team.
-                - event_time (str): Event time in ISO 8601 format.
+                - start_time (str): Event time in ISO 8601 format.
 
         Returns:
             list: A list of all available betting options in this block.

@@ -24,8 +24,12 @@ SCHEDULE_BASE_URL = {
 
 BOOK_BASE_URL = {
 	'fanduel': {},
-	'caesars': {},
-	'draftkings': {},
+	'caesars': {
+        'mlb': 'https://sportsbook.caesars.com/us/il/bet/baseball?id=04f90892-3afa-4e84-acce-5b89f151063d'
+	},
+	'draftkings': {
+        'mlb': 'https://sportsbook.draftkings.com/leagues/baseball/mlb'
+	},
 	'betmgm': {
         'mlb': 'https://sports.il.betmgm.com/en/sports/baseball-23/betting/usa-9/mlb-75',
 	},
@@ -35,21 +39,17 @@ BOOK_BASE_URL = {
 }
 
 MARKETS = {
-    'featured': {
-        'moneyline', 'spread', 'total',
-	},
-    'alternate': {
-		'alt_spread', 'alt_total', 'team_total', 
-	},
-    'baseball': {
-		# Batting Props
-		'batter_hits', 'batter_rbis', 'batter_total_bases', 'batter_runs', 
-		'batter_singles', 'batter_doubles', 'batter_triples', 'batter_home_runs', 
-		'batter_walks', 'batter_stolen_bases', 'batter_hits_runs_rbis'
-		# Pitching Props
-		'pitcher_outs', 'pitcher_strikeouts', 'pitcher_earned_runs', 'pitcher_walks',
-		'pitcher_hits_allowed',
-	},
+	# Game Lines
+	'moneyline', 'spread', 'total',
+	# Alternate Game Lines
+	'alt_spread', 'alt_total', 'team_total', 
+	# Batting Props
+	'batter_hits', 'batter_rbis', 'batter_total_bases', 'batter_runs', 
+	'batter_singles', 'batter_doubles', 'batter_triples', 'batter_home_runs', 
+	'batter_walks', 'batter_stolen_bases', 'batter_hits_runs_rbis'
+	# Pitching Props
+	'pitcher_outs', 'pitcher_strikeouts', 'pitcher_earned_runs', 'pitcher_walks',
+	'pitcher_hits_allowed',
 }
 
 BOOK_MARKETS = {

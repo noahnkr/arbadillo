@@ -23,3 +23,6 @@ class BlockNotFoundError(BlockError):
 
 class UnsupportedBlockType(BlockError):
 	pass
+
+class UnsupportedBlockMarket(BlockError):
+	pass
