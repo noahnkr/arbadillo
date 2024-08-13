@@ -47,3 +47,33 @@ $S_A = \$100 \cdot 0.5556 = \$55.56$
 $S_B = \$100 \cdot 0.4348 = \$43.48$
 
 In this case, if Team A wins, we win $\$55.56 \cdot 1.8 = \$100.98$. If Team B wins, we win $\$43.48 \cdot 2.3 = \$100.98$
+
+## Database Schema
+
+### Events Table
+
+- id (INTEGER, Hash)
+- away_team (VARCHAR)
+- home_team (VARCHAR)
+- event_time (TIMESTAMP, ISO 8601)
+- active (BOOLEAN)
+
+### Books Table
+- id (INTEGER, Autoincrement)
+- book_name (VARCHAR)
+- last_update (TIMESTAMP, ISO 8601)
+
+### Markets Schema
+- id (INTEGER, Autoincrement)
+- market_key (VARCHAR)
+
+### Picks Schema
+- id (INTEGER, Autoincrement)
+- event_id (INTEGER, FOREIGN KEY)
+- book_id (INTEGER, FOREIGN KEY)
+- market_id (INTEGER, FOREIGN KEY)
+- team (VARCHAR, NULLABLE)
+- line (FLOAT, NULLABLE)
+- odds (INTEGER)
+- player (VARCHAR, NULLABLE)
+- outcome (VARCHAR, NULLABLE)
