@@ -1,5 +1,5 @@
-from .models import Event, Book, Market, Pick
+from .models import Event, Book, Market, Pick, db
 
 __all__ = [
-    'Event', 'Book', 'Market', 'Pick'
+    'Event', 'Book', 'Market', 'Pick', 'db'
 ]
