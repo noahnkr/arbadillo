@@ -11,7 +11,7 @@ import time
 from .models import Event, Pick
 
 from exceptions import EventLengthMismatchError
-from utils import LEAGUES, TEAM_ACRONYMS, SCHEDULE_BASE_URL, BOOK_BASE_URL
+from utils import LEAGUES, TEAM_ACRONYMS, SCHEDULE_BASE_URL, BOOK_BASE_URL, MARKET_MAPPINGS
 
 class BaseScraper(ABC):
     def __init__(self, driver: WebDriver, book_name):
@@ -63,19 +63,45 @@ class BaseScraper(ABC):
 
                     time_text = time_element.text.strip()
                     if time_text == 'LIVE':
-                        is_live = True
+                        active = True
                         start_time = date.isoformat()
                     else:
                         time = datetime.strptime(time_text, '%I:%M %p').time()
-                        is_live = False
+                        active = False
                         start_time = datetime.combine(date, time).isoformat()
 
-                    events.append(Event(league, away, home, start_time, is_live))
+                    events.append(Event(league, away, home, start_time, active))
 
         return events
 
-    def _fuzzy_find_event(self, events, event_info, min_tolerance=5):
-        away_team, home_team, start_time, is_live = event_info
+    def _fuzzy_find_event(self, event_info, events, min_tolerance=5):
+        '''
+        Perform a fuzzy search to find an event that matches the given event information within a specified time tolerance.
+
+        Given the variability in the exact start time of sporting events, this method compares the provided event information
+        (`event_info`) with a list of existing events (`events`) to find a match. It checks if the away team, home team, and 
+        event status match exactly, and if the event start time falls within a given time tolerance.
+        
+        Args:
+            event_info (tuple): A tuple containing the following elements:
+                - away_team (str): The name of the away team.
+                - home_team (str): The name of the home team.
+                - start_time (str): The ISO 8601 formatted start time of the event.
+                - active (bool): The status of the event, indicating whether it is active.
+            events (list): A list of event objects to search through. Each event object is expected to have the following attributes:
+                - away_team (str): The name of the away team.
+                - home_team (str): The name of the home team.
+                - start_time (str): The ISO 8601 formatted start time of the event.
+                - active (bool): The status of the event.
+            min_tolerance (int, optional): The maximum allowable time difference in minutes between the event start times. Defaults to 5 minutes.
+            
+        Returns:
+            tuple: A tuple containing the matching event's away team, home team, start time, and active status if a match is found.
+        
+        Raises:
+            ValueError: If no matching event is found within the specified time tolerance.
+        '''
+        away_team, home_team, start_time, active = event_info
         start_time = datetime.fromisoformat(start_time)
 
         for event in events:
@@ -85,9 +111,11 @@ class BaseScraper(ABC):
                 event.away_team == away_team and 
                 event.home_team == home_team and 
                 time_difference <= min_tolerance and
-                event.is_live == is_live
+                event.active == active
             ):
-                return event.away_team, event.home_team, event.start_time, event.is_live
+                return event.away_team, event.home_team, event.start_time, event.active
+
+        raise ValueError(f'{self._event_info_to_str(event_info)} not found in list of events.')
 
     def _load_events_with_retries(self, locator: tuple, expected_length, max_retries=3, wait_time=5):
         '''
@@ -116,7 +144,7 @@ class BaseScraper(ABC):
                 return scraped_events
         raise EventLengthMismatchError(f'Expected: {expected_length}, Actual: {len(scraped_events)}.')
 
-    def _add_picks_to_matching_event(self, events, event_info, picks):
+    def _add_picks_to_matching_event(self, event_info, events, picks):
         '''
         Appends the given picks to the matching event in the list of events.
 
@@ -133,7 +161,7 @@ class BaseScraper(ABC):
         '''
         criteria = {
             'away_team': event_info[0], 'home_team': event_info[1], 
-            'start_time': event_info[2], 'is_live': event_info[3]
+            'start_time': event_info[2], 'active': event_info[3]
         }
         for e in events:
             if all(e.get(k) == v for k, v in criteria.items()):
@@ -143,7 +171,11 @@ class BaseScraper(ABC):
                     'picks': [p.to_dict() for p in picks]
                 })
                 return
-        raise ValueError('Matching event not found.')
+        raise ValueError(f'Matching event {self._event_info_to_str(event_info)} not found.')
+
+    @staticmethod
+    def _event_info_to_str(event_info: tuple):
+        return f'{event_info[0]}@{event_info[1]}_{'LIVE' if event_info[3] else event_info[2]}'
 
     @staticmethod
     def _get_book_base_url(book, league):
@@ -181,15 +213,21 @@ class BaseScraper(ABC):
     @staticmethod
     def _get_team_abbreviation(team_name):
         '''
-        Converts any form of team name into its 3-letter abbreviation.
+        Converts any form of team name into its respective abbreviation.
 
         Args:
             team_name (str): The team name to convert.
             
         Returns:
-            str: The 3-letter abbreviation of the team.
+            str: The abbreviation of the team.
         '''
         return TEAM_ACRONYMS[team_name]
+
+    @staticmethod
+    def _get_market_name(market_name):
+        market_name = market_name.lower().replace(' ', '_').replace(':', '_').replace('-', '_') \
+            .replace('1st', 'first').replace('2nd', 'second').replace('3rd', 'third').replace('5th', 'five')
+        return MARKET_MAPPINGS[market_name]
 
     @staticmethod
     @abstractmethod
@@ -219,7 +257,7 @@ class BaseScraper(ABC):
                 - away_team (str): Abbreviation of the away team.
                 - home_team (str): Abbreviation of the home team.
                 - event_time (str): Event time in ISO 8601 format.
-                - is_live (bool): A flag indicating if the event is currently live.
+                - active (bool): A flag indicating if the event is currently active..
         '''
         pass
 

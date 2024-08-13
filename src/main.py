@@ -1,18 +1,16 @@
-from selenium import webdriver
 from config import Config
 from scraper import *
 
 def main():
-    driver = webdriver.Chrome(Config.get_options, Config.get_service)
-    scraper = BetMGMScraper(driver)
+    driver = Config.get_driver()
     leagues = ['mlb']
 
     # Instantiate implementations of BaseScraper
-    #betmgm_scraper = BetMGMScraper(driver)
-    draftkings_scraper = DraftKingsScraper(driver)
+    betmgm_scraper = BetMGMScraper(driver)
+    #draftkings_scraper = DraftKingsScraper(driver)
     #fanduel_scraper = FanDuelScraper(driver)
     #ceasars_scraper = CeasarsScraper(driver)
-    book_scrapers = [draftkings_scraper]
+    book_scrapers = [betmgm_scraper]
 
     all_events = []
     for league in leagues:
@@ -26,6 +24,8 @@ def main():
         # to the final list and continue to the next league.
         all_events.extend(events)
 
+    for event in all_events:
+        print(event)
     driver.quit()
 if __name__ == '__main__':
     main()

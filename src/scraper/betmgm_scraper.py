@@ -33,17 +33,17 @@ class BetMGMScraper(BaseScraper):
             live = event_info.find('i')
 
             if starting_soon:
-                is_live = False
+                active = False
                 date = datetime.today().strftime('%Y-%m-%d')
                 starting_mins = int(starting_soon.text.split(' ')[2]) # Very dangerous
                 time = (datetime.now() + timedelta(minutes=starting_mins)).time()
                 time = time.strftime('%I:%M %p')
             elif live:
-                is_live = True
+                active = True
                 date = datetime.today().strftime('%Y-%m-%d')
                 time = None
             else:
-                is_live = False
+                active = False
                 time_parts = starting_time.text.split('•')
                 date = time_parts[0].strip()
                 time = time_parts[1].strip()
@@ -56,8 +56,8 @@ class BetMGMScraper(BaseScraper):
                 home_team = self._get_team_abbreviation(participants[1].text.strip().upper())
             else:
                 raise ValueError('Missing participant information.')
-        
-            return away_team, home_team, start_time, is_live
+
+            return away_team, home_team, start_time, active
         except AttributeError as e:
             raise ScraperError(f'Error parsing event info: {e}')
 
@@ -81,8 +81,8 @@ class BetMGMScraper(BaseScraper):
         league_url = self._get_book_base_url(self.book_name, league)
         self.driver.get(league_url)
 
-        event_map= {
-            (event.away_team, event.home_team, event.start_time, event.is_live): event for event in events
+        event_map = {
+            (event.away_team, event.home_team, event.start_time, event.active): event for event in events
         }
 
         try:
@@ -91,8 +91,8 @@ class BetMGMScraper(BaseScraper):
                     (By.CSS_SELECTOR, 'ms-six-pack-event.grid-event')
                 )
             )
-        except TimeoutException:
-            raise ScraperError(f'No events found for league {league} on book {self.book_name}.')
+        except Exception as e:
+            print(f'{type(e).__name__} encountered while loading events: {e}')
 
         for i in range(len(scraped_events)):
             try:
@@ -104,30 +104,37 @@ class BetMGMScraper(BaseScraper):
                 )
                 event_html = scraped_events[i].get_attribute('innerHTML')
                 event_link = scraped_events[i].find_element(By.CSS_SELECTOR, 'a.grid-info-wrapper')
+                event_soup = BeautifulSoup(event_html, 'lxml')
+            except Exception as e:
+                raise LeagueNotFoundError(f'Unable to load events page for league `{league}`')
 
-                soup = BeautifulSoup(event_html, 'lxml')
-                event_info = self._get_event_info(soup)
-                event_info = self._fuzzy_find_event(events, event_info)
-                if event_info not in event_map:
-                    continue
+            try:
+                event_info = self._fuzzy_find_event(
+                    self._get_event_info(event_soup), events
+                )
+            except Exception as e:
+                print(f'{type(e).__name__} encountered while getting event info for league `{league}`: {e}')
+                continue
 
+            if event_info not in event_map:
+                continue
+
+            try:
                 event_link.click()
                 picks = self._scrape_event(event_info)
-                self._add_picks_to_matching_event(events, event_info, picks)
-
-                self.driver.back()
-                time.sleep(2)
-            except StaleElementReferenceException:
-                print(f'StaleElementRefernceException encountered while scraping events in {league}')
-                continue
-            except ScraperError as e:
-                print(f'ScraperError encountered while scraping events in {league}: {type(e).__name__} - {e}')
+                self._add_picks_to_matching_event(event_info, events, picks)
             except Exception as e:
-                print(f'Unexpected error encountered while scraping events in {league}: {type(e).__name__} - {e}')
+                print(f'{type(e).__name__} encountered while scraping event `{self._event_info_to_str(event_info)}` for league `{league}`: {e}')
 
-    def _scrape_event(self, event_info):
+            self.driver.back()
+            # Give content a few seconds to load
+            time.sleep(2)
+
+
+    def _scrape_event(self):
         event_picks = []
         try:
+            # Click `All` button to show all available betting props
             all_button = self.wait.until(
                 EC.presence_of_element_located(
                     (By.CSS_SELECTOR, 'ul.event-details-pills-list li:last-child button.ds-pill')
@@ -136,69 +143,59 @@ class BetMGMScraper(BaseScraper):
             if all_button.text.strip() == 'All':
                 all_button.click()
         except Exception as e:
-            print(f'Error clicking all button: {e}')
+            print(f'{type(e).__name__} encountered while clicking all button: {e}')
 
         try:
             blocks = self.wait.until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'ms-option-panel.option-panel'))
             )
-        except TimeoutException as e:
-            raise EventNotFoundError(f'Unable to load event blocks in event {event_info}') from e
+        except Exception as e:
+            raise EventNotFoundError(f'Unable to load event blocks') from e
 
+        # Expose all block information
+        blocks_soup = []
         for block in blocks:
             try:
-                event_picks.extend(self._scrape_block(block, event_info))
-            except BlockNotFoundError as e:
-                print(f'BlockNotFoundError in event {event_info}: {e}')
+                # Expand block if it is closed
+                is_closed = (
+                    block.find_element(By.CSS_SELECTOR, 'div.option-group-header-chevron span')
+                        .get_attribute('class') == 'theme-down'
+                )
+                if is_closed:
+                    expand_button = block.find_element(By.CSS_SELECTOR, 'div.option-group-name.clickable')
+                    expand_button.click()
             except Exception as e:
-                print(f'Unexpected error scraping block in event {event_info}: {e}')
+                print(f'{type(e).__name__} encountered while expanding block: {e}')
+                
+            try:
+                # If there is a show more button, click it
+                show_more_button = block.find_elements(By.CSS_SELECTOR, 'div.show-more-less-button')
+                if show_more_button:
+                    show_more_button[0].click()
+            except Exception as e:
+                print(f'{type(e).__name__} encountered while clicking `Show More`: {e}')
+            
+            block_html = block.get_attribute('innerHTML')
+            block_soup = BeautifulSoup(block_html, 'lxml')
+            blocks_soup.append(blocks_soup)
+
+        for soup in blocks_soup:
+            try:
+                event_picks.extend(
+                    self._scrape_block(soup)
+                )
+            except Exception as e:
+                print(f'{type(e).__name__} encountered while scraping block')
+
 
         return event_picks
 
-    def _scrape_block(self, block: WebElement, event_info):
+    def _scrape_block(self, soup: BeautifulSoup):
         try:
-            block_title = block.find_element(By.CSS_SELECTOR, 'div.header-content').text.strip()
-        except NoSuchElementException:
-            raise BlockNotFoundError(f'Block title could not be found.')
-        
-
-        try:
-            # Expand block if it is closed
-            is_closed = (
-                block.find_element(By.CSS_SELECTOR, 'div.option-group-header-chevron span')
-                     .get_attribute('class') == 'theme-down'
-            )
-            if is_closed:
-                expand_button = block.find_element(By.CSS_SELECTOR, 'div.option-group-name.clickable')
-                expand_button.click()
-        except NoSuchElementException:
-            print(f'Expand button not found in event {event_info}')
+            block_title = soup.find('div', class_='header-content').text.strip()
+            block_type = soup.find('div', class_='option-group-container')['class'][1]
         except Exception as e:
-            print(f'Error expanding block in event {event_info}: {e}')
-
-        try:
-            # If there is a show more button, click it
-            show_more_button = block.find_elements(By.CSS_SELECTOR, 'div.show-more-less-button')
-            if show_more_button:
-                show_more_button[0].click()
-        except NoSuchElementException:
-            print(f'Show more button not found in event {event_info}')
-        except Exception as e:
-            print(f'Error clicking show more button in event {event_info}: {e}')
-
-
-        try:
-            # Determine block type and scrape accordingly
-            block_type = (
-                block.find_element(By.CSS_SELECTOR, 'div.option-group-container')
-                     .get_attribute('class')
-                     .split()[1]
-            )
-        except NoSuchElementException as e:
-            raise BlockNotFoundError(f'Block type not found in event {event_info} for block {block_title}') from e
-
-        block_html = block.get_attribute('innerHTML')
-        soup = BeautifulSoup(block_html, 'lxml')
+            raise BlockNotFoundError('Unable to load block information') from e
 
         match block_type:
             case 'six-pack-container':

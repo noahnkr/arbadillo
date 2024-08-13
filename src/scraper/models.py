@@ -1,21 +1,21 @@
 import hashlib
 
 class Event:
-    def __init__(self, league: str, away_team: str, home_team: str, start_time: str, is_live: bool = False):
+    def __init__(self, league: str, away_team: str, home_team: str, start_time: str, active: bool = False):
         self.league = league
         self.away_team = away_team
         self.home_team = home_team
         self.start_time = start_time
-        self.is_live = is_live
+        self.active = active
         self.id = self.generate_id()
         self.books = []
 
     def __str__(self):
         book_strs = '\n'.join(str(book) for book in self.books)
-        return f'{self.league.upper()}_{self.away_team}@{self.home_team}_{self.start_time}{"_LIVE" if self.is_live else ""}\n{book_strs}'
+        return f'{self.league.upper()}_{self.away_team}@{self.home_team}_{self.start_time}{"_LIVE" if self.active else ""}\n{book_strs}'
 
     def generate_id(self):
-        event_string = f'{self.away_team}_{self.home_team}_{self.league}_{self.start_time}{"_LIVE" if self.is_live else ""}'
+        event_string = f'{self.away_team}_{self.home_team}_{self.league}_{self.start_time}{"_LIVE" if self.active else ""}'
         return hashlib.sha256(event_string.encode()).hexdigest()
 
     def to_dict(self):
