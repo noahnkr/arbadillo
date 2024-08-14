@@ -1,3 +1,4 @@
+
 from flask import Blueprint, jsonify, request, abort
 from database.models import db, Event
 

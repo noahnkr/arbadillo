@@ -8,12 +8,8 @@ def create_app():
     app.config.from_object(Config)
 
     db.init_app(app)
-    migrate = Migrate(app, db)
 
-    with app.app_context():
-        db.create_all()
-
-        from .routes import events
-        app.register_blueprint(events.bp)
+    from .events import bp as events_bp
+    app.register_blueprint(events_bp)
     
     return app

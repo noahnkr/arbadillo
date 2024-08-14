@@ -1,8 +1,11 @@
 from selenium import webdriver
 from config import Config
+from api import create_app
 from scraper import *
 
+
 def main():
+    app = create_app()
     driver = webdriver.Chrome(Config.get_options, Config.get_service)
     scraper = BetMGMScraper(driver)
     leagues = ['mlb']
