@@ -6,7 +6,7 @@ from selenium.common.exceptions import (
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, PageElement
 from datetime import datetime, timedelta
 import time
 
@@ -139,8 +139,7 @@ class BetMGMScraper(BaseScraper):
                     (By.CSS_SELECTOR, 'ul.event-details-pills-list li:last-child button.ds-pill')
                 )
             )
-            if all_button.text.strip() == 'All':
-                all_button.click()
+            all_button.click()
         except Exception as e:
             print(f'{type(e).__name__} encountered while clicking all button: {e}')
 
@@ -184,63 +183,68 @@ class BetMGMScraper(BaseScraper):
                     self._scrape_block(soup)
                 )
             except Exception as e:
-                print(f'{type(e).__name__} encountered while scraping block')
+                print(f'{type(e).__name__} encountered while scraping block: {e}')
 
 
         return event_picks
 
     def _scrape_block(self, soup: BeautifulSoup):
         try:
-            block_title = soup.find('div', class_='header-content').text.strip()
-            block_type = soup.find('div', class_='option-group-container')['class'][1]
+            block_title = soup.find('div', class_='header-content').get_text(strip=True)
+            block_body = soup.find('div', class_='option-group-container')
+            if not block_body:
+                raise BlockNotFoundError(f'Missing block body in {block_title}')
+            block_type = block_body['class'][1]
         except Exception as e:
-            raise BlockNotFoundError('Unable to load block information') from e
+            raise BlockNotFoundError(f'Unable to load block information in block {block_title}: {e}') from e
 
         try:
             match block_type:
                 case 'six-pack-container':
-                    return self._scrape_six_pack_container(soup, block_title)
+                    return self._scrape_six_pack_container(block_body, block_title)
                 case 'over-under-container':
-                    return self._scrape_over_under_container(soup, block_title)
+                    return self._scrape_over_under_container(block_body, block_title)
                 case 'player-props-container':
-                    return self._scrape_player_prop_container(soup, block_title)
+                    return self._scrape_player_prop_container(block_body, block_title)
                 case _:
                     raise UnsupportedBlockType(f'{block_type} is not supported')
         except Exception as e:
-            print(f'{type(e).__name__} encountered while scraping {block_type}: {e}')
+            print(f'{type(e).__name__} encountered in block {block_type}: {e}')
             return []
 
-    def _scrape_six_pack_container(self, soup: BeautifulSoup, block_title):
+    def _scrape_six_pack_container(self, block_body: PageElement, block_title):
         game_lines = []
 
-        rows = soup.find_all('div', class_='option-row')
+        rows = block_body.find_all('div', class_='option-row')
         if len(rows) != 2:
             raise ValueError('Game lines must have 2 rows')
 
         for row in rows:
             try:
-                team_element = row.find('div', class_='six-pack-player-name')
-                team = self._get_team_abbreviation(team_element.text.strip().upper())
+                team = self._get_team_abbreviation(
+                    row.find('div', class_='six-pack-player-name')
+                        .get_text(strip=True).upper()
+                )
                 options = row.find_all('ms-event-pick', class_='option-pick')
                 for option in options:
                     name = option.find('div', class_='name')
                     value = option.find('div', class_='value')
 
-                    if name and ('+' in name.text or '-' in name.text):
+                    if name and ('+' in name.get_text() or '-' in name.get_text()):
                         market = 'spread'
                         outcome = None
                         line = float(name.text.replace('+', ''))
                         odds = int(value.text.replace('+', ''))
-                    elif name and ('O' in name.text or 'U' in name.text):
+                    elif name and ('O' in name.get_text() or 'U' in name.get_text()):
                         market = 'total'
-                        outcome = 'over' if 'O' in name.text else 'under'
-                        line = float(name.text.replace('O', '').replace('U', '').strip())
-                        odds = int(value.text.replace('+', ''))
+                        outcome = 'over' if 'O' in name.get_text() else 'under'
+                        line = float(name.get_text(strip=True).replace('O', '').replace('U', ''))
+                        odds = int(value.get_text().replace('+', ''))
                     elif value:
                         market = 'moneyline'
                         outcome = None
                         line = None
-                        odds = int(value.text.replace('+', ''))
+                        odds = int(value.get_text().replace('+', ''))
                     else:
                         continue
 
@@ -253,57 +257,50 @@ class BetMGMScraper(BaseScraper):
         return game_lines
 
             
-    def _scrape_over_under_container(self, soup: BeautifulSoup, block_title):
+    def _scrape_over_under_container(self, block_body: PageElement, block_title):
         over_unders = []
         market, team = self._get_market_name(block_title)
 
-        lines = soup.find_all('div', class_='attribute-key')
-        options = soup.find_all('ms-option', class_='option')
-        for i, option in enumerate(options):
-            try:
-                line = float(lines[i // 2].text)
-                outcome = 'over' if i % 2 == 0 else 'under'
+        options = block_body.find_all('ms-option', class_='option')
+        for option in options:
+            name = option.find('div', class_='name')
+            value = option.find('span', class_='custom-odds-value-style')
 
-                option = option.find('ms-event-pick', class_='option-pick')
-                if option:
-                    odds = int(
-                        option.find('ms-font-resizer').text
-                            .replace('+', '')
-                            .strip()
-                    )
-                    over_unders.append(
-                        Pick(market, team, line, odds, outcome)
-                    )
-            except Exception as e:
-                print(f'{type(e).__name__} encountered while scraping option in over unders: {e}')
+            if name and value:
+                outcome, line = name.get_text(strip=True).split(' ', 1)
+                outcome = outcome.lower()
+                line = float(line)
+                odds = int(value.get_text(strip=True).replace('+', ''))
+            else:
+                continue
+
+            over_unders.append(
+                Pick(market, team, line, odds, outcome)
+            )
 
         return over_unders
 
-    def _scrape_player_prop_container(self, soup: BeautifulSoup, block_title):
+    def _scrape_player_prop_container(self, block_body: PageElement, block_title):
         player_props = []
         market, team = self._get_market_name(block_title)
 
-        players = soup.find_all('div', class_='player-props-player-name')
-        options = soup.find_all('ms-event-pick', class_='option-pick')
+        players = block_body.find_all('div', class_='player-props-player-name')
+        options = block_body.find_all('ms-option', class_='option')
         for i, option in enumerate(options):
-            try:
-                player = players[i // 2].text
+            player = players[i // 2]
+            name = option.find('div', class_='name')
+            value = option.find('div', class_='value')
+
+            if player and name and value:
+                player = player.get_text(strip=True)
+                line = float(name.get_text(strip=True).replace('Over ', '').replace('Under ', ''))
+                odds = int(value.get_text(strip=True).replace('+', ''))
                 outcome = 'over' if i % 2 == 0 else 'under'
-                line = float(
-                    option.find('div', class_='name').text
-                        .replace('Over', '')
-                        .replace('Under', '')
-                        .strip()
-                )
-                odds = int(
-                    option.find('div', class_='value').text
-                        .replace('+', '')
-                        .strip()
-                )
-                player_props.append(
-                    Pick(market, team, line, odds, outcome, player)
-                )
-            except Exception as e:
-                print(f'{type(e).__name__} encountered while scraping option in player props: {e}')
+            else:
+                continue
+
+            player_props.append(
+                Pick(market, team, line, odds, outcome, player)
+            )
 
         return player_props

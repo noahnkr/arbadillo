@@ -1,5 +1,6 @@
 from config import Config
 from scraper import *
+import json
 
 def main():
     driver = Config.get_driver()
@@ -24,8 +25,13 @@ def main():
         # to the final list and continue to the next league.
         all_events.extend(events)
 
-    for event in all_events:
-        print(event)
+    all_events_dict = []
+    for e in all_events:
+        all_events_dict.append(e.to_dict())
+
+    with open('data/exports.json', 'w') as file:
+        json.dump(all_events_dict, file, indent=4)
+
     driver.quit()
 if __name__ == '__main__':
     main()

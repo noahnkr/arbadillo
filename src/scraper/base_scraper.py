@@ -35,7 +35,6 @@ class BaseScraper(ABC):
         events = []
         schedule_url = self._get_schedule_base_url(league)
         self.driver.get(schedule_url)
-        self.driver.maximize_window()
         self.wait.until(
             EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.ResponsiveTable'))
         )
@@ -218,7 +217,8 @@ class BaseScraper(ABC):
                 market_name = rhs
 
         normalized_market_name = (
-            market_name.lower().replace(' ', '_').replace(':', '_').replace('-', '_').replace('__', '_')
+            market_name.lower().replace(' ', '_').replace(':', '_')
+                .replace('-', '_').replace('+', '_').replace('__', '_')
         )
         normalized_market_name_parts = normalized_market_name.split('_')
         if team:
