@@ -14,6 +14,16 @@ class Event:
         book_strs = '\n'.join(str(book) for book in self.books)
         return f'{self.league.upper()}_{self.away_team}@{self.home_team}_{self.start_time}{"_LIVE" if self.active else ""}\n{book_strs}'
 
+    def __eq__(self, other):
+        if isinstance(other, Event):
+            return (
+                self.away_team == other.away_team
+                and self.home_team == other.home_team
+                and self.start_time == other.start_time
+                and self.active == other.active
+            )
+        return False
+
     def generate_id(self):
         event_string = f'{self.away_team}_{self.home_team}_{self.league}_{self.start_time}{"_LIVE" if self.active else ""}'
         return hashlib.sha256(event_string.encode()).hexdigest()

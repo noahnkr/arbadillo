@@ -117,19 +117,18 @@ class BetMGMScraper(BaseScraper):
                 continue
 
             if event_info not in event_map:
+                print(f'Event {self._event_info_to_str(event_info)} not found in list of events.')
                 continue
 
             try:
                 event_link.click()
-                picks = self._scrape_event(event_info)
-                self._add_picks_to_matching_event(event_info, events, picks)
+                picks = self._scrape_event()
+                self._add_picks_to_matching_event(league, event_info, events, picks)
             except Exception as e:
                 print(f'{type(e).__name__} encountered while scraping event `{self._event_info_to_str(event_info)}` for league `{league}`: {e}')
 
             self.driver.back()
-            # Give content a few seconds to load
             time.sleep(2)
-
 
     def _scrape_event(self):
         event_picks = []
@@ -177,7 +176,7 @@ class BetMGMScraper(BaseScraper):
             
             block_html = block.get_attribute('innerHTML')
             block_soup = BeautifulSoup(block_html, 'lxml')
-            blocks_soup.append(blocks_soup)
+            blocks_soup.append(block_soup)
 
         for soup in blocks_soup:
             try:
@@ -197,22 +196,26 @@ class BetMGMScraper(BaseScraper):
         except Exception as e:
             raise BlockNotFoundError('Unable to load block information') from e
 
-        match block_type:
-            case 'six-pack-container':
-                return self._scrape_six_pack_container(soup, block_title)
-            case 'over-under-container':
-                return self._scrape_over_under_container(soup, block_title)
-            case 'player-props-container':
-                return self._scrape_player_prop_container(soup, block_title)
-            case _:
-                raise UnsupportedBlockType(f'Unsupported block type: {block_type}')
+        try:
+            match block_type:
+                case 'six-pack-container':
+                    return self._scrape_six_pack_container(soup, block_title)
+                case 'over-under-container':
+                    return self._scrape_over_under_container(soup, block_title)
+                case 'player-props-container':
+                    return self._scrape_player_prop_container(soup, block_title)
+                case _:
+                    raise UnsupportedBlockType(f'{block_type} is not supported')
+        except Exception as e:
+            print(f'{type(e).__name__} encountered while scraping {block_type}: {e}')
+            return []
 
     def _scrape_six_pack_container(self, soup: BeautifulSoup, block_title):
         game_lines = []
 
         rows = soup.find_all('div', class_='option-row')
         if len(rows) != 2:
-            raise ValueError('Game lines must have 2 rows.')
+            raise ValueError('Game lines must have 2 rows')
 
         for row in rows:
             try:
@@ -220,52 +223,39 @@ class BetMGMScraper(BaseScraper):
                 team = self._get_team_abbreviation(team_element.text.strip().upper())
                 options = row.find_all('ms-event-pick', class_='option-pick')
                 for option in options:
-                    try:
-                        name = option.find('div', class_='name')
-                        value = option.find('div', class_='value')
+                    name = option.find('div', class_='name')
+                    value = option.find('div', class_='value')
 
-                        if name and ('+' in name.text or '-' in name.text):
-                            market = 'spread'
-                            outcome = None
-                            line = float(name.text.replace('+', ''))
-                            odds = int(value.text.replace('+', ''))
-                        elif name and ('O' in name.text or 'U' in name.text):
-                            market = 'total'
-                            outcome = 'over' if 'O' in name.text else 'under'
-                            line = float(name.text.replace('O', '').replace('U', '').strip())
-                            odds = int(value.text.replace('+', ''))
-                        elif value:
-                            market = 'moneyline'
-                            outcome = None
-                            line = None
-                            odds = int(value.text.replace('+', ''))
-                        else:
-                            continue
+                    if name and ('+' in name.text or '-' in name.text):
+                        market = 'spread'
+                        outcome = None
+                        line = float(name.text.replace('+', ''))
+                        odds = int(value.text.replace('+', ''))
+                    elif name and ('O' in name.text or 'U' in name.text):
+                        market = 'total'
+                        outcome = 'over' if 'O' in name.text else 'under'
+                        line = float(name.text.replace('O', '').replace('U', '').strip())
+                        odds = int(value.text.replace('+', ''))
+                    elif value:
+                        market = 'moneyline'
+                        outcome = None
+                        line = None
+                        odds = int(value.text.replace('+', ''))
+                    else:
+                        continue
 
-                        game_lines.append(
-                            Pick(market, team, line, odds, outcome)
-                        )
-
-                    except Exception as e:
-                        print(f'Error with option in block {block_title} (game-lines): {e}')
+                    game_lines.append(
+                        Pick(market, team, line, odds, outcome)
+                    )
             except Exception as e:
-                print(f'Error getting team name in block {block_title} (game-lines): {e}')
+                print(f'{type(e).__name__} encountered while scraping option in game lines: {e}')
 
         return game_lines
 
             
     def _scrape_over_under_container(self, soup: BeautifulSoup, block_title):
         over_unders = []
-
-        if ':' in block_title:
-            # TODO: Handle all block titles
-            return []
-        else:
-            team = None
-            market = block_title.lower().replace(' ', '_')
-            if market not in MARKETS:
-                print(f'Market {market} is not supported.')
-                return []
+        market, team = self._get_market_name(block_title)
 
         lines = soup.find_all('div', class_='attribute-key')
         options = soup.find_all('ms-option', class_='option')
@@ -285,20 +275,13 @@ class BetMGMScraper(BaseScraper):
                         Pick(market, team, line, odds, outcome)
                     )
             except Exception as e:
-                print(f'Error with option in block {market} (over-under): {e}')
+                print(f'{type(e).__name__} encountered while scraping option in over unders: {e}')
 
         return over_unders
 
     def _scrape_player_prop_container(self, soup: BeautifulSoup, block_title):
         player_props = []
-
-        if ':' in block_title:
-            return []
-        else:
-            market = block_title.lower().replace(' ', '_')
-            if market not in MARKETS:
-                print(f'Market {market} is not supported.')
-                return []
+        market, team = self._get_market_name(block_title)
 
         players = soup.find_all('div', class_='player-props-player-name')
         options = soup.find_all('ms-event-pick', class_='option-pick')
@@ -318,9 +301,9 @@ class BetMGMScraper(BaseScraper):
                         .strip()
                 )
                 player_props.append(
-                    Pick(market, None, line, odds, outcome, player)
+                    Pick(market, team, line, odds, outcome, player)
                 )
             except Exception as e:
-                print(f'Error scraping option in block {block_title} (player-prop): {e}')
+                print(f'{type(e).__name__} encountered while scraping option in player props: {e}')
 
         return player_props

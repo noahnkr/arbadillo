@@ -373,6 +373,10 @@ MARKET_MAPPINGS = {
     'hits_runs_rbis': 'batter_hits_runs_rbis',
     'total_hits_runs_rbis': 'batter_hits_runs_rbis',
     'player_hits_runs_rbis': 'batter_hits_runs_rbis',
+    'batter_h_r_rbis': 'batter_hits_runs_rbis',
+    'h_r_rbis': 'batter_hits_runs_rbis',
+    'total_h_r_rbis': 'batter_hits_runs_rbis',
+    'player_h_r_rbis': 'batter_hits_runs_rbis',
 
     # Pitching Props
     'pitcher_outs': 'pitcher_outs',
@@ -1128,7 +1132,7 @@ TEAM_ACRONYMS = {
     'SAN DIEGO PADRES': 'SD', 'SAN DIEGO': 'SD', 'PADRES': 'SD', 'SD': 'SD',
     'SAN FRANCISCO GIANTS': 'SF', 'SAN FRANCISCO': 'SF', 'GIANTS': 'SF', 'SF': 'SF',
     'SEATTLE MARINERS': 'SEA', 'SEATTLE': 'SEA', 'MARINERS': 'SEA', 'SEA': 'SEA',
-    'ST. LOUIS CARDINALS': 'STL', 'ST LOUIS': 'STL', 'ST. LOUIS': 'STL', 'CARDINALS': 'STL', 'STL': 'STL',
+    'ST. LOUIS CARDINALS': 'STL', 'ST LOUIS CARDINALS': 'STL', 'ST LOUIS': 'STL', 'ST. LOUIS': 'STL', 'CARDINALS': 'STL', 'STL': 'STL',
     'TAMPA BAY RAYS': 'TB', 'TAMPA BAY': 'TB', 'RAYS': 'TB', 'TB': 'TB',
     'TEXAS RANGERS': 'TEX', 'TEXAS': 'TEX', 'RANGERS': 'TEX', 'TEX': 'TEX',
     'TORONTO BLUE JAYS': 'TOR', 'TORONTO': 'TOR', 'BLUE JAYS': 'TOR', 'TOR': 'TOR',
