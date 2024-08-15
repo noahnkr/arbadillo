@@ -50,8 +50,7 @@ class Config:
     # Scraper Configuration
     SCRAPING_INTERVAL = int(os.environ.get('SCRAPING_INTERVAL') or 60)
     RETRY_ATTEMPTS = int(os.environ.get('RETRY_ATTEMPTS') or 3)
+    LEAGUES = os.environ.get('LEAGUES').split(',')
+    BOOKS =  os.environ.get('BOOKS').split(',')
 
     # Database Configuration
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-

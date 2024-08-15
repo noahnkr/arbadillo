@@ -1,39 +1,18 @@
 from config import Config
-from api import create_app
-from scraper import *
-import json
-
+from scraper import BaseScraper
+from utils import get_book_scraper
 
 def main():
     driver = Config.get_driver()
-    leagues = ['mlb']
-
-    # Instantiate implementations of BaseScraper
-    betmgm_scraper = BetMGMScraper(driver)
-    #draftkings_scraper = DraftKingsScraper(driver)
-    #fanduel_scraper = FanDuelScraper(driver)
-    #ceasars_scraper = CeasarsScraper(driver)
-    book_scrapers = [betmgm_scraper]
 
     all_events = []
-    for league in leagues:
-        # Get a list of the events for the league from ESPN
-        events = book_scrapers[0].scrape_league_events(league)
-        for book in book_scrapers:
-            # Append this books picks to the list of events.
-            book.scrape_odds(league, events)
+    for league in Config.LEAGUES:
+        league_events = BaseScraper.scrape_league_events(driver, league)
+        for book in Config.BOOKS:
+            scraper = get_book_scraper(book, driver)
+            scraper.scrape_odds(league, league_events)
+        all_events.extend(league_events)
         
-        # Once every book's picks has been added to the league's events, add these picks
-        # to the final list and continue to the next league.
-        all_events.extend(events)
-
-    all_events_dict = []
-    for e in all_events:
-        all_events_dict.append(e.to_dict())
-
-    with open('data/exports.json', 'w') as file:
-        json.dump(all_events_dict, file, indent=4)
-
     driver.quit()
 
 if __name__ == '__main__':

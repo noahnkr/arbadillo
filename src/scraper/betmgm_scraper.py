@@ -1,24 +1,17 @@
 from selenium.webdriver.remote.webdriver import WebDriver
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.common.exceptions import (
-    StaleElementReferenceException, NoSuchElementException, TimeoutException
-)
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup, PageElement
 from datetime import datetime, timedelta
 import time
 
 from .base_scraper import BaseScraper
-from .models import Event, Pick
+from .models import ScrapedEvent, ScrapedPick
 
-from utils import MARKETS
-
-from exceptions import (
-    InputError, ScraperError, LeagueNotFoundError,
+from utils import (
+    ScraperError, LeagueNotFoundError,
     EventNotFoundError, BlockNotFoundError,
-    UnsupportedBlockType, UnsupportedBlockMarket
+    UnsupportedBlockType,
 )
 
 class BetMGMScraper(BaseScraper):
@@ -108,7 +101,7 @@ class BetMGMScraper(BaseScraper):
                 event_info = self._fuzzy_find_event(
                     self._get_event_info(event_soup), events
                 )
-                event = Event(
+                event = ScrapedEvent(
                     league, event_info[0], event_info[1], event_info[2], event_info[3]
                 )
             except Exception as e:
@@ -248,7 +241,7 @@ class BetMGMScraper(BaseScraper):
                         continue
 
                     game_lines.append(
-                        Pick(market, team, line, odds, outcome)
+                        ScrapedPick(market, team, line, odds, outcome)
                     )
             except Exception as e:
                 print(f'{type(e).__name__} encountered while scraping option in game lines: {e}')
@@ -274,7 +267,7 @@ class BetMGMScraper(BaseScraper):
                 continue
 
             over_unders.append(
-                Pick(market, team, line, odds, outcome)
+                ScrapedPick(market, team, line, odds, outcome)
             )
 
         return over_unders
@@ -299,7 +292,7 @@ class BetMGMScraper(BaseScraper):
                 continue
 
             player_props.append(
-                Pick(market, team, line, odds, outcome, player)
+                ScrapedPick(market, team, line, odds, outcome, player)
             )
 
         return player_props

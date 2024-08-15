@@ -1,6 +1,6 @@
 import hashlib
 
-class Event:
+class ScrapedEvent:
     def __init__(self, league: str, away_team: str, home_team: str, start_time: str, active: bool = False):
         self.league = league
         self.away_team = away_team
@@ -14,7 +14,7 @@ class Event:
         return f'{self.league}_{self.away_team}@{self.home_team}_{self.start_time}'
     
     def __eq__(self, other):
-        if isinstance(other, Event):
+        if isinstance(other, ScrapedEvent):
             return (
                 self.away_team == other.away_team
                 and self.home_team == other.home_team
@@ -27,18 +27,7 @@ class Event:
         event_string = f'{self.away_team}_{self.home_team}_{self.league}_{self.start_time}{'_LIVE' if self.active else ''}'
         return hashlib.sha256(event_string.encode()).hexdigest()
 
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'league': self.league,
-            'away_team': self.away_team,
-            'home_team': self.home_team,
-            'start_time': self.start_time,
-            'active': self.active,
-            'books': self.books
-        }
-
-class Pick:
+class ScrapedPick:
     def __init__(self, market: str, team: str, line: int, odds: float, outcome: str = None, player: str = None):
         self.market = market
         self.team = team
@@ -51,7 +40,7 @@ class Pick:
         return f'{self.market}_{self.team}_{self.line}_{self.odds}_{self.outcome}_{self.player}'
 
     def __eq__(self, other):
-        if isinstance(other, Pick):
+        if isinstance(other, ScrapedPick):
             return (
                 self.market == other.market
                 and self.team == other.team
@@ -61,13 +50,3 @@ class Pick:
                 and self.player == other.player
             )
         return False
-
-    def to_dict(self):
-        return {
-            'market': self.market,
-            'team': self.team,
-            'line': self.line,
-            'odds': self.odds,
-            'outcome': self.outcome,
-            'player': self.player,
-        }

@@ -1,10 +1,6 @@
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
-from selenium.common.exceptions import (
-    StaleElementReferenceException, NoSuchElementException, TimeoutException
-)
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
@@ -12,15 +8,7 @@ import time
 import re
 
 from .base_scraper import BaseScraper
-from .models import Event, Pick
-
-from utils import MARKETS
-
-from exceptions import (
-    InputError, ScraperError, LeagueNotFoundError,
-    EventNotFoundError, BlockNotFoundError,
-    UnsupportedBlockType, UnsupportedBlockMarket
-)
+from .models import ScrapedEvent, ScrapedPick
 
 class DraftKingsScraper(BaseScraper):
     def __init__(self, driver: WebDriver):
@@ -109,7 +97,7 @@ class DraftKingsScraper(BaseScraper):
                         start_time = self._format_event_time(event_date)
                         is_live = False
                     
-                    event = Event(league, away_team, home_team, start_time, is_live)
+                    event = ScrapedEvent(league, away_team, home_team, start_time, is_live)
                     if event in events:
                         scraped_events.append((event_info, event_link))
             except Exception as e:

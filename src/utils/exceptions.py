@@ -1,12 +1,4 @@
-# Invalid input exception.
-class InputError(Exception):
-	pass
-
-# Exceptions that happen during webscraping
 class ScraperError(Exception):
-	pass
-
-class EventLengthMismatchError(ScraperError):
 	pass
 
 class LeagueNotFoundError(ScraperError):
@@ -22,7 +14,4 @@ class BlockNotFoundError(BlockError):
 	pass
 
 class UnsupportedBlockType(BlockError):
-	pass
-
-class UnsupportedBlockMarket(BlockError):
 	pass

@@ -6,18 +6,17 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 from datetime import datetime
-import time
+from config import Config
 
-from .models import Event, Pick
+from .models import ScrapedEvent, ScrapedPick
 
-from exceptions import EventLengthMismatchError
 from utils import LEAGUES, TEAM_ACRONYMS, SCHEDULE_BASE_URL, BOOK_BASE_URL, MARKET_MAPPINGS
 
 class BaseScraper(ABC):
     def __init__(self, driver: WebDriver, book_name):
         self.driver = driver
         self.book_name = book_name
-        self.wait = WebDriverWait(self.driver, 10)
+        self.wait = WebDriverWait(self.driver, Config.WEBDRIVER_WAIT_TIME)
 
     @staticmethod
     def scrape_league_events(driver, league):
@@ -75,7 +74,7 @@ class BaseScraper(ABC):
                         active = False
                         start_time = datetime.combine(date, time_).isoformat()
 
-                    events.append(Event(league, away, home, start_time, active))
+                    events.append(ScrapedEvent(league, away, home, start_time, active))
 
         return events
 
@@ -142,7 +141,7 @@ class BaseScraper(ABC):
                 e.books.append({
                     'title': self.book_name,
                     'last_update': datetime.now().isoformat(),
-                    'picks': [p.to_dict() for p in picks]
+                    'picks': picks
                 })
                 return
         raise ValueError(f'Matching event {event} not found.')
