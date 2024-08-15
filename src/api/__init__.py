@@ -1,4 +1,3 @@
-from flask_migrate import Migrate
 from flask import Flask
 from database.models import db
 from config import Config

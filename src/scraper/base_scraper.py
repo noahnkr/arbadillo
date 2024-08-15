@@ -11,7 +11,7 @@ import time
 from .models import Event, Pick
 
 from exceptions import EventLengthMismatchError
-from utils import LEAGUES, TEAM_ACRONYMS, SCHEDULE_BASE_URL, BOOK_BASE_URL
+from utils import LEAGUES, TEAM_ACRONYMS, SCHEDULE_BASE_URL, BOOK_BASE_URL, MARKET_MAPPINGS
 
 class BaseScraper(ABC):
     def __init__(self, driver: WebDriver, book_name):
@@ -19,7 +19,8 @@ class BaseScraper(ABC):
         self.book_name = book_name
         self.wait = WebDriverWait(self.driver, 10)
 
-    def scrape_league_events(self, league):
+    @staticmethod
+    def scrape_league_events(driver, league):
         '''
         Scrapes the list of upcoming and live events for the specified league from the schedule page.
 
@@ -33,12 +34,12 @@ class BaseScraper(ABC):
             list: A list of Event objects representing the upcoming and live events for the specified league.
         '''
         events = []
-        schedule_url = self._get_schedule_base_url(league)
-        self.driver.get(schedule_url)
-        self.wait.until(
+        schedule_url = BaseScraper._get_schedule_base_url(league)
+        driver.get(schedule_url)
+        WebDriverWait(driver, 10).until(
             EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.ResponsiveTable'))
         )
-        html = self.driver.page_source
+        html = driver.page_source
         soup = BeautifulSoup(html, 'lxml')
 
         tables = soup.find_all('div', class_='ResponsiveTable')
@@ -54,8 +55,12 @@ class BaseScraper(ABC):
             for row in rows:
                 participants = row.find_all('span', class_='Table__Team')
                 if len(participants) == 2:
-                    away = BaseScraper._get_team_abbreviation(participants[0].text.strip().upper())
-                    home = BaseScraper._get_team_abbreviation(participants[1].text.strip().upper())
+                    away = BaseScraper._get_team_abbreviation(
+                        participants[0].find('a')['href'].split('/').pop().replace('-', ' ').upper()
+                    )
+                    home = BaseScraper._get_team_abbreviation(
+                        participants[1].find('a')['href'].split('/').pop().replace('-', ' ').upper()
+                    )
 
                     time_element = row.find('td', class_='date__col')
                     if time_element is None:
@@ -63,19 +68,45 @@ class BaseScraper(ABC):
 
                     time_text = time_element.text.strip()
                     if time_text == 'LIVE':
-                        is_live = True
+                        active = True
                         start_time = date.isoformat()
                     else:
-                        time = datetime.strptime(time_text, '%I:%M %p').time()
-                        is_live = False
-                        start_time = datetime.combine(date, time).isoformat()
+                        time_ = datetime.strptime(time_text, '%I:%M %p').time()
+                        active = False
+                        start_time = datetime.combine(date, time_).isoformat()
 
-                    events.append(Event(league, away, home, start_time, is_live))
+                    events.append(Event(league, away, home, start_time, active))
 
         return events
 
-    def _fuzzy_find_event(self, events, event_info, min_tolerance=5):
-        away_team, home_team, start_time, is_live = event_info
+    def _fuzzy_find_event(self, event_info, events, min_tolerance=5):
+        '''
+        Perform a fuzzy search to find an event that matches the given event information within a specified time tolerance.
+
+        Given the variability in the exact start time of sporting events, this method compares the provided event information
+        `event_info` with a list of existing events `events` to find a match. It checks if the away team, home team, and 
+        event status match exactly, and if the event start time falls within a given time tolerance.
+        
+        Args:
+            event_info (tuple): A tuple containing the following elements:
+                - away_team (str): The name of the away team.
+                - home_team (str): The name of the home team.
+                - start_time (str): The ISO 8601 formatted start time of the event.
+                - active (bool): The status of the event, indicating whether it is active.
+            events (list): A list of event objects to search through. Each event object is expected to have the following attributes:
+                - away_team (str): The name of the away team.
+                - home_team (str): The name of the home team.
+                - start_time (str): The ISO 8601 formatted start time of the event.
+                - active (bool): The status of the event.
+            min_tolerance (int, optional): The maximum allowable time difference in minutes between the event start times. Defaults to 5 minutes.
+            
+        Returns:
+            tuple: A tuple containing the matching event's away team, home team, start time, and active status if a match is found.
+        
+        Raises:
+            ValueError: If no matching event is found within the specified time tolerance.
+        '''
+        away_team, home_team, start_time, active = event_info
         start_time = datetime.fromisoformat(start_time)
 
         for event in events:
@@ -85,38 +116,13 @@ class BaseScraper(ABC):
                 event.away_team == away_team and 
                 event.home_team == home_team and 
                 time_difference <= min_tolerance and
-                event.is_live == is_live
+                event.active == active
             ):
-                return event.away_team, event.home_team, event.start_time, event.is_live
+                return event.away_team, event.home_team, event.start_time, event.active
 
-    def _load_events_with_retries(self, locator: tuple, expected_length, max_retries=3, wait_time=5):
-        '''
-        Attempts to load the list of events from the sportsbook page multiple times 
-        until the expected number of events is loaded or the maximum number of retries is reached.
+        raise ValueError(f'{self._event_info_to_str(event_info)} not found in list of events.')
 
-        Args:
-            locator (tuple): Locator for the elements representing events on the page, used by Selenium.
-            expected_length (int): The expected number of event elements to be loaded.
-            max_retries (int): Maximum number of retry attempts if the expected number of events is not loaded.
-            wait_time (int): The amount of time to wait for events to load between retries.
-
-        Returns:
-            list: List of WebElement objects representing the loaded events.
-
-        Raises:
-            EventLengthMismatchError: If the expected number of events is not loaded within the maximum number of retries.
-        '''
-        for _ in range(max_retries):
-            scraped_events = self.wait.until(
-                EC.presence_of_all_elements_located(locator)
-            )
-            if len(scraped_events) != expected_length:
-                time.sleep(wait_time)
-            else:
-                return scraped_events
-        raise EventLengthMismatchError(f'Expected: {expected_length}, Actual: {len(scraped_events)}.')
-
-    def _add_picks_to_matching_event(self, events, event_info, picks):
+    def _add_picks_to_matching_event(self, event, events, picks):
         '''
         Appends the given picks to the matching event in the list of events.
 
@@ -124,26 +130,22 @@ class BaseScraper(ABC):
         to the event that matches the specified away team, home team, and event time.
 
         Args:
-            events (list): List of event dictionaries.
-            event_info (tuple): Tuple containing event information to match.
-            picks (dict): Dictionary containing the picks to append to the matching event.
+            event (Event): The event to be matched.
+            events (list): List of Events.
+            picks (list): List of Picks to be added to the matching event.
 
         Raises:
             ValueError: If no matching event is found in the list of events.
         '''
-        criteria = {
-            'away_team': event_info[0], 'home_team': event_info[1], 
-            'start_time': event_info[2], 'is_live': event_info[3]
-        }
         for e in events:
-            if all(e.get(k) == v for k, v in criteria.items()):
+            if e == event:
                 e.books.append({
                     'title': self.book_name,
                     'last_update': datetime.now().isoformat(),
                     'picks': [p.to_dict() for p in picks]
                 })
                 return
-        raise ValueError('Matching event not found.')
+        raise ValueError(f'Matching event {event} not found.')
 
     @staticmethod
     def _get_book_base_url(book, league):
@@ -175,21 +177,49 @@ class BaseScraper(ABC):
 
         Returns:
             str: The base URL for the league's schedule.
+
+        Raises:
+            KeyError if the league does not exist in the `SCHEDULE_BASE_URL~ dictionary.
         '''
         return SCHEDULE_BASE_URL[league]
 
     @staticmethod
     def _get_team_abbreviation(team_name):
         '''
-        Converts any form of team name into its 3-letter abbreviation.
+        Converts any form of team name into its respective abbreviation.
 
         Args:
             team_name (str): The team name to convert.
             
         Returns:
-            str: The 3-letter abbreviation of the team.
+            str: The abbreviation of the team.
+
+        Raises:
+            KeyError if the team name does not exist in the `TEAM_ACRONYMS~ dictionary.
         '''
         return TEAM_ACRONYMS[team_name]
+
+    @staticmethod
+    def _get_market_name(market_name):
+        team = None
+        if ':' in market_name:
+            market_name_parts = market_name.split(':')
+            lhs = market_name_parts[0].strip().upper()
+            rhs = market_name_parts[1].strip()
+            if lhs in TEAM_ACRONYMS:
+                team = TEAM_ACRONYMS[lhs]
+                market_name = rhs
+
+        normalized_market_name = (
+            market_name.lower().replace(' ', '_').replace(':', '_')
+                .replace('-', '_').replace('+', '_').replace('__', '_')
+        )
+        normalized_market_name_parts = normalized_market_name.split('_')
+        if team:
+            normalized_market_name_parts.insert(0, 'team')
+        
+        market_name = '_'.join(normalized_market_name_parts).strip('_')
+        return MARKET_MAPPINGS[market_name], team
 
     @staticmethod
     @abstractmethod
@@ -219,7 +249,7 @@ class BaseScraper(ABC):
                 - away_team (str): Abbreviation of the away team.
                 - home_team (str): Abbreviation of the home team.
                 - event_time (str): Event time in ISO 8601 format.
-                - is_live (bool): A flag indicating if the event is currently live.
+                - active (bool): Flag indicating if the event is active or not.
         '''
         pass
 
@@ -240,18 +270,12 @@ class BaseScraper(ABC):
         pass
 
     @abstractmethod
-    def _scrape_event(self, event_info):
+    def _scrape_event(self):
         '''
         Scrapes an event page for a certain sportsbook.
 
         This function scrapes all available game and player prop odds for this event,
         and stores the data in a list.
-
-        Args:
-            event_info (tuple): A tuple containing:
-                - away_team (str): Abbreviation of the away team.
-                - home_team (str): Abbreviation of the home team.
-                - start_time (str): Event time in ISO 8601 format.
 
         Returns:
             dict: A dictionary containing the book name, last update time, and a list of all available betting options for the event.
@@ -259,16 +283,12 @@ class BaseScraper(ABC):
         pass
 
     @abstractmethod
-    def _scrape_block(self, block: WebElement, event_info):
+    def _scrape_block(self, soup: BeautifulSoup):
         '''
         Scrapes betting options from a specific block element on the sportsbook page.
 
         Args:
-            block (WebElement): The web element containing the betting options.
-            event_info (tuple): A tuple containing:
-                - away_team (str): Abbreviation of the away team.
-                - home_team (str): Abbreviation of the home team.
-                - start_time (str): Event time in ISO 8601 format.
+            soup (BeautifulSoup): A BeautifulSoup object of the innerHTML of the block.
 
         Returns:
             list: A list of all available betting options in this block.

@@ -35,7 +35,6 @@ class DraftKingsScraper(BaseScraper):
         else:
             ordinal_suffix_re = re.compile(r'(\d+)(st|nd|rd|th)', re.IGNORECASE)
             cleaned_date_str = ordinal_suffix_re.sub(r'\1', date)
-            print(cleaned_date_str)
             event_date = datetime.strptime(cleaned_date_str, '%a %b %d').date()
             event_date = event_date.replace(year=datetime.now().year)
         if time:
@@ -51,10 +50,6 @@ class DraftKingsScraper(BaseScraper):
     def scrape_odds(self, league, events):
         league_url = self._get_book_base_url(self.book_name, league)
         self.driver.get(league_url)
-
-        event_map = {
-            (event.away_team, event.home_team, event.start_time, event.is_live): event for event in events
-        }
 
         try:
             tables = self.wait.until(
@@ -114,8 +109,8 @@ class DraftKingsScraper(BaseScraper):
                         start_time = self._format_event_time(event_date)
                         is_live = False
                     
-                    event_info = (away_team, home_team, start_time, is_live)
-                    if event_info in event_map:
+                    event = Event(league, away_team, home_team, start_time, is_live)
+                    if event in events:
                         scraped_events.append((event_info, event_link))
             except Exception as e:
                 print(f'{type(e).__name__} encountered while scraping table: {e}')
