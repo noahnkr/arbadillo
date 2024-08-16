@@ -1,6 +1,8 @@
 __pycache__/
 
+# Database
 data/
+*.sqlite3
 
 # Environment Variables
 .env

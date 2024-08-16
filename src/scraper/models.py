@@ -24,7 +24,7 @@ class ScrapedEvent:
         return False
 
     def generate_id(self):
-        event_string = f'{self.away_team}_{self.home_team}_{self.league}_{self.start_time}{'_LIVE' if self.active else ''}'
+        event_string = self.__str__()
         return hashlib.sha256(event_string.encode()).hexdigest()
 
 class ScrapedPick:

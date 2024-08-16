@@ -1,4 +1,3 @@
-from scraper import DraftKingsScraper, BetMGMScraper
 
 LEAGUES = {'nba', 'mlb', 'nfl'}
 
@@ -11,17 +10,19 @@ SPORTS = {
 
 BOOKS = {'fanduel', 'caesars', 'draftkings', 'betmgm', 'betrivers', 'pointsbet', 'espnbet'}
 
-BOOK_SCRAPERS = {
-    'fanduel': None,
-    'caesars': None, 
-    'draftkings': DraftKingsScraper,
-    'betmgm': BetMGMScraper, 
-    'betrivers': None, 
-    'pointsbet':  None, 
-    'espnbet': None
-}
-
 def get_book_scraper(book_name, driver):
+    from scraper import DraftKingsScraper, BetMGMScraper
+
+    BOOK_SCRAPERS = {
+        'fanduel': None,
+        'caesars': None, 
+        'draftkings': DraftKingsScraper,
+        'betmgm': BetMGMScraper, 
+        'betrivers': None, 
+        'pointsbet':  None, 
+        'espnbet': None
+    }
+
     scraper_class = BOOK_SCRAPERS.get(book_name.lower())
     if scraper_class:
         return scraper_class(driver)
