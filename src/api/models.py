@@ -1,8 +1,7 @@
 from django.db import models
 
 class Event(models.Model):
-	id = models.CharField(primary_key=True)
-	league = models.CharField()
+	league = models.CharField(max_length=100)
 	away_team = models.CharField(max_length=100)
 	home_team = models.CharField(max_length=100)
 	start_time = models.DateTimeField()
@@ -15,7 +14,7 @@ class Sportsbook(models.Model):
 
 class Pick(models.Model):
 	sportsbook = models.ForeignKey(Sportsbook, related_name='picks', on_delete=models.CASCADE)
-	market = models.CharField(null=False)
+	market = models.CharField(max_length=100, null=False)
 	team = models.CharField(max_length=100, null=True, blank=True)
 	line = models.FloatField(null=True, blank=True)
 	odds = models.IntegerField(null=False)

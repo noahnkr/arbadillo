@@ -22,7 +22,6 @@ def main():
     
     for scraped_event in all_events:
         event, created = Event.objects.get_or_create(
-            id=scraped_event.id,
             league=scraped_event.league,
             away_team=scraped_event.away_team,
             home_team=scraped_event.home_team,
