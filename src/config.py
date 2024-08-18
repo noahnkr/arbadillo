@@ -13,6 +13,7 @@ class Config:
     HEADLESS = os.environ.get('HEADLESS', 'False').lower() in ['true', '1', 't']
     WEBDRIVER_PATH = os.environ.get('WEBDRIVER_PATH')
     WEBDRIVER_WAIT_TIME = int(os.environ.get('WEBDRIVER_WAIT_TIME') or 10)
+    WEBDRIVER_THREADS = int(os.environ.get('WEBDRIVER_THREADS') or 3)
 
     @staticmethod
     def get_driver():
@@ -23,19 +24,18 @@ class Config:
             if Config.HEADLESS:
                 options.add_argument('--headless')
 
-            # Suppress logging
             options.add_argument('--disable-logging')
             options.add_argument('--log-level=3')
+            options.add_argument('--disable-extensions')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--disable-infobars')
+            options.add_argument('--no-sandbox')
             user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             options.add_argument(f'user-agent={user_agent}')
             options.add_experimental_option('excludeSwitches', ['enable-automation'])
             options.add_experimental_option('useAutomationExtension', False)
-            options.add_argument('--disable-extensions')
-            options.add_argument('--disable-infobars')
-            options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
             options.add_argument('window-size=1920,1080')
-            options.add_argument('--disable-gpu')
 
             if Config.WEBDRIVER_PATH:
                 service = ChromeService(Config.WEBDRIVER_PATH)

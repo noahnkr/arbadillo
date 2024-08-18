@@ -1,3 +1,4 @@
+from datetime import datetime
 import hashlib
 
 class ScrapedEvent:
@@ -26,6 +27,18 @@ class ScrapedEvent:
     def generate_id(self):
         event_string = self.__str__()
         return hashlib.sha256(event_string.encode()).hexdigest()
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'league': self.league,
+            'away_team': self.away_team,
+            'home_team': self.home_team,
+            'start_time': self.start_time,
+            'active': self.active,
+            'books': [b.to_dict() for b in self.books]
+
+        }
 
 class ScrapedPick:
     def __init__(self, market: str, team: str, line: int, odds: float, outcome: str = None, player: str = None):
@@ -50,3 +63,26 @@ class ScrapedPick:
                 and self.player == other.player
             )
         return False
+
+    def to_dict(self):
+        return {
+            'market': self.market,
+            'team': self.team,
+            'line': self.line,
+            'odds': self.odds,
+            'outcome': self.outcome,
+            'player': self.player,
+        }
+
+class ScrapedBook:
+    def __init__(self, book_name: str, picks: list[ScrapedPick]):
+        self.book_name = book_name
+        self.last_update = datetime.now().isoformat()
+        self.picks = picks
+
+    def to_dict(self):
+        return {
+            'book_name': self.book_name,
+            'last_update': self.last_update,
+            'picks': [p.to_dict() for p in self.picks]
+        }

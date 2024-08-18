@@ -1,6 +1,4 @@
 from abc import ABC, abstractmethod
-from selenium.webdriver.remote.webdriver import WebDriver
-from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -8,18 +6,14 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from config import Config
 
-from .models import ScrapedEvent, ScrapedPick
+from .models import ScrapedEvent, ScrapedBook, ScrapedPick
 
 from utils import LEAGUES, TEAM_ACRONYMS, SCHEDULE_BASE_URL, BOOK_BASE_URL, MARKET_MAPPINGS
 
 class BaseScraper(ABC):
-    def __init__(self, driver: WebDriver, book_name):
-        self.driver = driver
-        self.book_name = book_name
-        self.wait = WebDriverWait(self.driver, Config.WEBDRIVER_WAIT_TIME)
 
     @staticmethod
-    def scrape_league_events(driver, league):
+    def scrape_upcoming_events(league):
         '''
         Scrapes the list of upcoming and live events for the specified league from the schedule page.
 
@@ -30,12 +24,13 @@ class BaseScraper(ABC):
             league (str): The league for which to scrape events (e.g., 'mlb', 'nba').
 
         Returns:
-            list: A list of Event objects representing the upcoming and live events for the specified league.
+            list[Event]: A list of Event objects representing the upcoming and live events for the specified league.
         '''
+        driver = Config.get_driver()
         events = []
         schedule_url = BaseScraper._get_schedule_base_url(league)
         driver.get(schedule_url)
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
             EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.ResponsiveTable'))
         )
         html = driver.page_source
@@ -76,9 +71,12 @@ class BaseScraper(ABC):
 
                     events.append(ScrapedEvent(league, away, home, start_time, active))
 
+        driver.quit()
+
         return events
 
-    def _fuzzy_find_event(self, event_info, events, min_tolerance=5):
+    @staticmethod
+    def _fuzzy_find_event(event_info, events, min_tolerance=10):
         '''
         Perform a fuzzy search to find an event that matches the given event information within a specified time tolerance.
 
@@ -119,9 +117,10 @@ class BaseScraper(ABC):
             ):
                 return event.away_team, event.home_team, event.start_time, event.active
 
-        raise ValueError(f'{self._event_info_to_str(event_info)} not found in list of events.')
+        raise ValueError(f'Event {away_team}@{home_team}_{start_time} not found.')
 
-    def _add_picks_to_matching_event(self, event, events, picks):
+    @staticmethod
+    def _add_picks_to_matching_event(event, book_name, events, picks):
         '''
         Appends the given picks to the matching event in the list of events.
 
@@ -138,11 +137,7 @@ class BaseScraper(ABC):
         '''
         for e in events:
             if e == event:
-                e.books.append({
-                    'title': self.book_name,
-                    'last_update': datetime.now().isoformat(),
-                    'picks': picks
-                })
+                e.books.append(ScrapedBook(book_name, picks))
                 return
         raise ValueError(f'Matching event {event} not found.')
 
@@ -235,8 +230,9 @@ class BaseScraper(ABC):
         '''
         pass
 
+    @staticmethod
     @abstractmethod
-    def _get_event_info(self, soup: BeautifulSoup):
+    def _get_event_info(soup: BeautifulSoup):
         '''
         Extracts event information from an event page on the sportsbook.
 
@@ -252,37 +248,32 @@ class BaseScraper(ABC):
         '''
         pass
 
-
+    @staticmethod
     @abstractmethod
-    def scrape_odds(self, league, events):
-        '''
-        Scrapes all the picks and their odds for this sportsbook in the given league.
-
-        Navigates the sportsbook and for each league, starting from the league's base URL,
-        scrapes a list of all possible picks and their odds for each event happening in the requested leagues.
-
-        Args:
-            league (str): The league for which to scrape odds data.
-            events (list): A list of Event objects representing the events to scrape.
-
-        '''
+    def _scrape_events(league, events):
         pass
 
+    @staticmethod
     @abstractmethod
-    def _scrape_event(self):
+    def scrape_event_page(event_url, event, driver=None):
         '''
         Scrapes an event page for a certain sportsbook.
 
         This function scrapes all available game and player prop odds for this event,
         and stores the data in a list.
 
+        Paramters:
+            event_url (str): The url of the event page on this sportsbook.
+
         Returns:
-            dict: A dictionary containing the book name, last update time, and a list of all available betting options for the event.
+            list[Event]: 
+           
         '''
         pass
 
+    @staticmethod
     @abstractmethod
-    def _scrape_block(self, soup: BeautifulSoup):
+    def _scrape_block_picks(soup: BeautifulSoup):
         '''
         Scrapes betting options from a specific block element on the sportsbook page.
 
