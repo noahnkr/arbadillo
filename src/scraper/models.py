@@ -17,9 +17,10 @@ class ScrapedEvent:
     def __eq__(self, other):
         if isinstance(other, ScrapedEvent):
             return (
-                self.away_team == other.away_team
+                self.league == other.league
+                and self.away_team == other.away_team
                 and self.home_team == other.home_team
-                and self.start_time == other.start_time
+                and (self.start_time - other.start_time).total_seconds() / 60 <= 10
                 and self.active == other.active
             )
         return False
@@ -34,10 +35,9 @@ class ScrapedEvent:
             'league': self.league,
             'away_team': self.away_team,
             'home_team': self.home_team,
-            'start_time': self.start_time,
+            'start_time': self.start_time.isoformat(),
             'active': self.active,
             'books': [b.to_dict() for b in self.books]
-
         }
 
 class ScrapedPick:

@@ -41,6 +41,7 @@ BOOK_BASE_URL = {
 MARKETS = {
 	# General Game Lines
 	'moneyline', 'spread', 'total',
+    'game_lines'
 
 	# Alternate Game Lines
 	'alt_spread', 'alt_total', 'team_total',
@@ -182,6 +183,8 @@ MARKET_MAPPINGS = {
     'money_line': 'moneyline',
     'money_line_bet': 'moneyline',
     'straight_up': 'moneyline',
+    'game_lines': 'game_lines',
+    'game_lines_game': 'game_lines',
     
     'spread': 'spread',
     'point_spread': 'spread',

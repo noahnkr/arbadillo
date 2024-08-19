@@ -6,7 +6,6 @@ from bs4 import BeautifulSoup, PageElement
 from datetime import datetime, timedelta
 from config import Config
 import time
-from concurrent.futures import ThreadPoolExecutor
 
 from .base_scraper import BaseScraper
 from .models import ScrapedEvent, ScrapedPick
@@ -18,6 +17,9 @@ from utils import (
 )
 
 class BetMGMScraper(BaseScraper):
+
+    def __init__(self):
+        super().__init__('betmgm')
 
     @staticmethod
     def _get_event_info(soup: BeautifulSoup):
@@ -70,83 +72,44 @@ class BetMGMScraper(BaseScraper):
         else:
             event_time = datetime.min.time()
 
-        return datetime.combine(event_date, event_time).isoformat()
+        return datetime.combine(event_date, event_time)
 
-    @staticmethod
-    def scrape_events(league, events):
+    def scrape_event_urls(self, league, events, driver):
         # Initialize a single WebDriver to scrape the initial list of events
-        driver = Config.get_driver()
-        driver.get(BetMGMScraper._get_book_base_url('betmgm', league))
+        driver.get(self._get_book_base_url(league))
 
         try:
-            scraped_events = WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
+            event_elements = WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
                 EC.presence_of_all_elements_located(
                     (By.CSS_SELECTOR, 'ms-six-pack-event.grid-event')
                 )
             )
         except Exception as e:
-            driver.quit()
             raise LeagueNotFoundError(f'{type(e).__name__} encountered while loading events: {e}')
         
-        # Get a list of the links to the event pages
-        event_links = []
-        for event in scraped_events:
+        event_urls = []
+        for event_element in event_elements:
             try:
-                event_html = event.get_attribute('innerHTML')
-                event_link = event.find_element(By.CSS_SELECTOR, 'a.grid-info-wrapper').get_attribute('href')
+                event_html = event_element.get_attribute('innerHTML')
+                event_url = event_element.find_element(By.CSS_SELECTOR, 'a.grid-info-wrapper').get_attribute('href')
                 event_soup = BeautifulSoup(event_html, 'lxml')
-                event_info = BetMGMScraper._fuzzy_find_event(
-                    BetMGMScraper._get_event_info(event_soup), events
-                )
+                event_info = self._get_event_info(event_soup)
                 scraped_event = ScrapedEvent(
                     league, event_info[0], event_info[1], event_info[2], event_info[3]
                 )
-
+                if scraped_event in events:
+                    event_urls.append((scraped_event, event_url))
             except Exception as e:
                 print(f'{type(e).__name__} encountered while getting event info for league `{league}`: {e}')
-                continue
+        
+        return event_urls
 
-            if scraped_event in events:
-                event_links.append((scraped_event, event_link))
-
-        driver.quit()
-
-        drivers = [Config.get_driver() for _ in range(Config.WEBDRIVER_THREADS)]
-        with ThreadPoolExecutor(Config.WEBDRIVER_THREADS) as executor:
-            for i, (event, link) in enumerate(event_links):
-                executor.submit(BetMGMScraper._scrape_event_thread, event, link, events, drivers[i % Config.WEBDRIVER_THREADS])
-
-        for d in drivers:
-            d.quit()
-
-    @staticmethod
-    def _scrape_event_thread(event, link, events, driver):
-        try:
-            event_picks = BetMGMScraper.scrape_event_page(link, event, driver)
-            BetMGMScraper._add_picks_to_matching_event(
-                event, 'betmgm', events, event_picks
-            )
-        except Exception as e:
-            print(f'{type(e).__name__} encountered while scraping event `{event}`: {e}')
-
-    @staticmethod
-    def scrape_event_page(event_url, event, driver=None):
-        event_picks = []
-        if driver is None:
-            driver = Config.get_driver()
-        driver.get(event_url)
-
-        # Wait for event blocks to load
-        WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, 'div.event-detail-wrapper')
-            )
-        )
-
+    def scrape_event_page(self, event, url, driver):
+        driver.get(url)
         try:
             # Click `All` button to show all available betting props
             all_button = WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
-                EC.presence_of_element_located(
+                EC.element_to_be_clickable(
                     (By.CSS_SELECTOR, 'ul.event-details-pills-list li:last-child button.ds-pill')
                 )
             )
@@ -155,7 +118,7 @@ class BetMGMScraper(BaseScraper):
             print(f'{type(e).__name__} encountered while clicking all button in event `{event}`: {e}')
 
         try:
-            # Locate each block
+            # Wait for blocks to load
             blocks = WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
                 EC.presence_of_all_elements_located(
                     (By.CSS_SELECTOR, 'ms-option-panel.option-panel')
@@ -164,11 +127,18 @@ class BetMGMScraper(BaseScraper):
         except Exception as e:
             raise EventNotFoundError(f'Unable to load event blocks in event `{event}') from e
 
-        blocks_soup = []
+        block_soup = []
         for block in blocks:
-            # Expose all block information
             try:
-                # Expand block if it is closed
+                # If the market name is not supported, continue to the next block
+                block_title = block.find_element(By.CSS_SELECTOR, 'span.market-name').text.strip()
+                self._get_market_name(block_title)
+            except Exception as e:
+                print(f'{type(e).__name__} encountered while getting block title: {e}')
+                continue
+
+            try:
+                # If the block is closed, expand it
                 is_closed = (
                     block.find_element(By.CSS_SELECTOR, 'div.option-group-header-chevron span')
                         .get_attribute('class') == 'theme-down'
@@ -181,106 +151,87 @@ class BetMGMScraper(BaseScraper):
                 
             try:
                 # If there is a show more button, click it to expose more picks
-                show_more_button = block.find_elements(By.CSS_SELECTOR, 'div.show-more-less-button')
+                show_more_button = driver.find_elements(By.CSS_SELECTOR, 'div.show-more-less-button')
                 if show_more_button:
                     show_more_button[0].click()
             except Exception as e:
                 print(f'{type(e).__name__} encountered while clicking `Show More` in `{event}`: {e}')
 
             # Save block HTML info
-            blocks_soup.append(
-                BeautifulSoup(
-                    block.get_attribute('innerHTML'),
-                    'lxml'
+            block_soup.append(BeautifulSoup(
+                block.get_attribute('innerHTML'), 'lxml'
                 )   
             )
 
         # Scrape each block
-        for soup in blocks_soup:
+        event_picks = []
+        for soup in block_soup:
             try:
-                event_picks.extend(
-                    BetMGMScraper._scrape_block_picks(soup)
-                )
+                block_type = soup.select_one('div.option-group-container')['class'][1]
+                match block_type:
+                    case 'six-pack-container':
+                        event_picks.extend(self._scrape_six_pack_container(soup))
+                    case 'over-under-container':
+                        event_picks.extend(self._scrape_over_under_container(soup))
+                    case 'player-props-container':
+                        event_picks.extend(self._scrape_player_prop_container(soup))
+                    case 'regular-option-container':
+                        event_picks.extend(self._scrape_regular_option_container(soup))
+                    case 'spread-container':
+                        event_picks.extend(self._scrape_spread_container(soup))
+                    case _:
+                        raise UnsupportedBlockType(f'{block_type} is not supported')
             except Exception as e:
-                print(f'{type(e).__name__} encountered while scraping block in `{event}`: {e}')
+                print(f'{type(e).__name__} encountered while scraping block `{block_type}` in `{event}`: {e}')
 
         return event_picks
 
-    def _scrape_block_picks(soup: BeautifulSoup):
-        try:
-            block_title = soup.find('div', class_='header-content').get_text(strip=True)
-            block_body = soup.find('div', class_='option-group-container')
-            if not block_body:
-                raise BlockNotFoundError(f'Missing block body in {block_title}')
-            block_type = block_body['class'][1]
-        except Exception as e:
-            raise BlockNotFoundError(f'Unable to load block information in block {block_title}: {e}') from e
-
-        try:
-            match block_type:
-                case 'six-pack-container':
-                    return BetMGMScraper._scrape_six_pack_container(block_body, block_title)
-                case 'over-under-container':
-                    return BetMGMScraper._scrape_over_under_container(block_body, block_title)
-                case 'player-props-container':
-                    return BetMGMScraper._scrape_player_prop_container(block_body, block_title)
-                case _:
-                    raise UnsupportedBlockType(f'{block_type} is not supported')
-        except Exception as e:
-            print(f'{type(e).__name__} encountered in block {block_type}: {e}')
-            return []
-
-    @staticmethod
-    def _scrape_six_pack_container(block_body: PageElement, block_title):
+    def _scrape_six_pack_container(self, soup: BeautifulSoup):
         game_lines = []
 
-        rows = block_body.find_all('div', class_='option-row')
+        rows = soup.find_all('div', class_='option-row')
         if len(rows) != 2:
             raise ValueError('Game lines must have 2 rows')
 
         for row in rows:
-            try:
-                team = BetMGMScraper._get_team_abbreviation(
-                    row.find('div', class_='six-pack-player-name')
-                        .get_text(strip=True).upper()
+            team = self._get_team_abbreviation(
+                row.find('div', class_='six-pack-player-name')
+                    .get_text(strip=True).upper()
+            )
+            options = row.find_all('ms-event-pick', class_='option-pick')
+            for option in options:
+                name = option.find('div', class_='name')
+                value = option.find('div', class_='value')
+
+                if name and ('+' in name.get_text() or '-' in name.get_text()):
+                    market = 'spread'
+                    outcome = None
+                    line = float(name.text.replace('+', ''))
+                    odds = int(value.text.replace('+', ''))
+                elif name and ('O' in name.get_text() or 'U' in name.get_text()):
+                    market = 'total'
+                    outcome = 'over' if 'O' in name.get_text() else 'under'
+                    line = float(name.get_text(strip=True).replace('O', '').replace('U', ''))
+                    odds = int(value.get_text().replace('+', ''))
+                elif value:
+                    market = 'moneyline'
+                    outcome = None
+                    line = None
+                    odds = int(value.get_text().replace('+', ''))
+                else:
+                    continue
+
+                game_lines.append(
+                    ScrapedPick(market, team, line, odds, outcome)
                 )
-                options = row.find_all('ms-event-pick', class_='option-pick')
-                for option in options:
-                    name = option.find('div', class_='name')
-                    value = option.find('div', class_='value')
-
-                    if name and ('+' in name.get_text() or '-' in name.get_text()):
-                        market = 'spread'
-                        outcome = None
-                        line = float(name.text.replace('+', ''))
-                        odds = int(value.text.replace('+', ''))
-                    elif name and ('O' in name.get_text() or 'U' in name.get_text()):
-                        market = 'total'
-                        outcome = 'over' if 'O' in name.get_text() else 'under'
-                        line = float(name.get_text(strip=True).replace('O', '').replace('U', ''))
-                        odds = int(value.get_text().replace('+', ''))
-                    elif value:
-                        market = 'moneyline'
-                        outcome = None
-                        line = None
-                        odds = int(value.get_text().replace('+', ''))
-                    else:
-                        continue
-
-                    game_lines.append(
-                        ScrapedPick(market, team, line, odds, outcome)
-                    )
-            except Exception as e:
-                print(f'{type(e).__name__} encountered while scraping option in game lines: {e}')
-
         return game_lines
 
-    @staticmethod
-    def _scrape_over_under_container(block_body: PageElement, block_title):
+    def _scrape_over_under_container(self, soup: BeautifulSoup):
         over_unders = []
-        market, team = BetMGMScraper._get_market_name(block_title)
+        block_title = soup.select_one('span.market-name').get_text(strip=True)
+        market, team = self._get_market_name(block_title)
 
-        options = block_body.find_all('ms-option', class_='option')
+        options = soup.find_all('ms-option', class_='option')
         for option in options:
             name = option.find('div', class_='name')
             value = option.find('span', class_='custom-odds-value-style')
@@ -299,13 +250,13 @@ class BetMGMScraper(BaseScraper):
 
         return over_unders
 
-    @staticmethod
-    def _scrape_player_prop_container(block_body: PageElement, block_title):
+    def _scrape_player_prop_container(self, soup: BeautifulSoup):
         player_props = []
-        market, team = BetMGMScraper._get_market_name(block_title)
+        block_title = soup.select_one('span.market-name').get_text(strip=True)
+        market, team = self._get_market_name(block_title)
 
-        players = block_body.find_all('div', class_='player-props-player-name')
-        options = block_body.find_all('ms-option', class_='option')
+        players = soup.find_all('div', class_='player-props-player-name')
+        options = soup.find_all('ms-option', class_='option')
         for i, option in enumerate(options):
             player = players[i // 2]
             name = option.find('div', class_='name')
@@ -313,8 +264,14 @@ class BetMGMScraper(BaseScraper):
 
             if player and name and value:
                 player = player.get_text(strip=True)
-                line = float(name.get_text(strip=True).replace('Over ', '').replace('Under ', ''))
-                odds = int(value.get_text(strip=True).replace('+', ''))
+                line = float(
+                    name.get_text(strip=True)
+                        .replace('Over ', '')
+                        .replace('Under ', ''))
+                odds = int(
+                    value.get_text(strip=True)
+                        .replace('+', '')
+                )
                 outcome = 'over' if i % 2 == 0 else 'under'
             else:
                 continue
@@ -324,3 +281,42 @@ class BetMGMScraper(BaseScraper):
             )
 
         return player_props
+
+    def _scrape_regular_option_container(self, soup: BeautifulSoup):
+        options = []
+        block_title = soup.select_one('span.market-name').get_text(strip=True)
+        market, team = self._get_market_name(block_title)
+
+        outcomes = soup.select('div.name')
+        odds = soup.select('div.value')
+
+        for outcome, odd in zip(outcomes, odds):
+            outcome = outcome.get_text(strip=True).lower()
+            odd = int(odd.get_text(strip=True).replace('+', ''))
+            options.append(ScrapedPick(market, team, None, odd, outcome))
+
+        return options
+
+    def _scrape_spread_container(self, soup: BeautifulSoup):
+        spreads = []
+        block_title = soup.select_one('span.market-name').get_text(strip=True)
+        market, _ = self._get_market_name(block_title)
+
+        participants = soup.select('div.option-group-header span')
+        options = soup.select('div.option-indicator')
+
+        for i, option in enumerate(options):
+            team = self._get_team_abbreviation(
+                participants[i % 2].get_text(strip=True).upper()
+            )
+            line = float(
+                option.select_one('div.name').get_text(strip=True)
+                    .replace('+', '')
+            )
+            odds = int(
+                option.select_one('div.value').get_text(strip=True)
+                    .replace('+', '')
+            )
+            spreads.append(ScrapedPick(market, team, line, odds))
+
+        return spreads

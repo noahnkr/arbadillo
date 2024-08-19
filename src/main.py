@@ -15,7 +15,7 @@ def main():
     odds = scrape_odds(Config.LEAGUES, Config.BOOKS)
     print(f'Execution Time: {time.time() - start_time}s')
 
-    with open('data/exports.json', 'w') as f:
+    with open('data/export.json', 'w') as f:
         json.dump([o.to_dict() for o in odds], f, indent=4)
 
 if __name__ == '__main__':
