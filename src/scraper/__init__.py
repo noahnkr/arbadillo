@@ -22,8 +22,6 @@ def scrape_odds(leagues, books, threads):
     events = []
     # WebDriver at index 0 is used to scrape the upcoming schedule
     book_drivers = [Config.get_driver() for _ in range(threads)]
-    for bd in book_drivers:
-        bd.maximize_window()
 
     start_time = time.time()
     for league in leagues:

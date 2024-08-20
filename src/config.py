@@ -53,7 +53,12 @@ class Config:
 
 				# Apply headless mode based on the environment variable
 				if Config.HEADLESS:
-					options.add_argument('-headless')
+					options.add_argument('--headless')
+					options.add_argument('--width=1920')
+					options.add_argument('--height=1080')
+					options.add_argument("--enable-webgl")
+					options.add_argument("--disable-infobars")
+					options.add_argument("--ignore-certificate-errors")
 
 				if Config.WEBDRIVER_PATH:
 					service = FirefoxService(Config.WEBDRIVER_PATH)
