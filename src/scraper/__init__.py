@@ -3,6 +3,8 @@ from .betmgm_scraper import BetMGMScraper
 from .draftkings_scraper import DraftKingsScraper
 from concurrent.futures import ThreadPoolExecutor
 from config import Config
+from utils import logger
+import time
 
 def get_book_scraper(book_name) -> BaseScraper:
     BOOK_SCRAPERS = {
@@ -21,12 +23,14 @@ def scrape_odds(leagues, books, threads):
     # WebDriver at index 0 is used to scrape the upcoming schedule
     book_drivers = [Config.get_driver() for _ in range(threads)]
 
+    start_time = time.time()
     for league in leagues:
+        logger.info(f'Scraping league `{league}`')
         league_events = BaseScraper.scrape_scheduled_events(league, book_drivers[0])
         for book in books:
+            logger.info(f'Scraping book `{book}`')
             book_scraper = get_book_scraper(book)()
             event_urls = book_scraper.scrape_event_urls(league, league_events, book_drivers[0])
-            print('# Events:', len(event_urls))
             # Evenly distribute event URLs to each driver
             avg, remainder = divmod(len(event_urls), threads)
             event_url_slices = [
@@ -34,19 +38,24 @@ def scrape_odds(leagues, books, threads):
             ]
             for i, s in enumerate(event_url_slices):
                 u = [f'- {t[1]}' for t in s]
-                print(f'Driver {i}:\n{'\n'.join(u)}')
+                logger.info(f'Driver {i} Queue:\n{'\n'.join(u)}')
 
             with ThreadPoolExecutor(threads) as thread:
-                results = thread.map(book_scraper.scrape_events, league, event_url_slices, book_drivers)
-                for result in results:
-                    for event, picks in result:
-                        book_scraper._add_picks_to_matching_event(event, league_events, picks)
+                try:
+                    results = thread.map(book_scraper.scrape_events, league, event_url_slices, book_drivers)
+                    for result in results:
+                        for event, picks in result:
+                            book_scraper._add_picks_to_matching_event(event, league_events, picks)
+                except Exception as e:
+                    logger.critical(f'{type(e).__name__} encountered while scraping event pool')
         events.extend(league_events)
     
-    print('quitting...')
+    logger.info(f'Execution Time: {time.time() - start_time}s')
+    
+    logger.info('Quitting...')
     for bd in book_drivers:
         bd.quit()
-
+    
     return events
 
 __all__ = [

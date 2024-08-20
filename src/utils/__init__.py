@@ -19,6 +19,8 @@ from .exceptions import (
 	UnsupportedBlockType,
 )
 
+from .logger import logger
+
 __all__ = [
     'LEAGUES',
     'SPORTS',
@@ -36,4 +38,5 @@ __all__ = [
     'BlockError',
     'BlockNotFoundError',
     'UnsupportedBlockType',
+    'logger'
 ]
