@@ -79,8 +79,7 @@ class BetMGMScraper(BaseScraper):
 
     def scrape_event_urls(self, league, events, driver: WebDriver):
         driver.get(self._get_book_base_url(league))
-        self._scroll_to_bottom(driver)
-        time.sleep(2)
+        driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
 
         try:
             event_elements = self._locate_element_with_retries(
@@ -130,14 +129,6 @@ class BetMGMScraper(BaseScraper):
         block_soup = []
         for block in blocks:
             try:
-                # If the market name is not supported, continue to the next block
-                block_title = block.find_element(By.CSS_SELECTOR, 'span.market-name').text.strip()
-                self._normalize_market_name(block_title)
-            except Exception as e:
-                logger.error(f'{type(e).__name__} encountered while getting block title: {e}')
-                continue
-
-            try:
                 # If the block is closed, expand it
                 is_closed = (
                     block.find_element(By.CSS_SELECTOR, 'div.option-group-header-chevron span')
@@ -177,7 +168,7 @@ class BetMGMScraper(BaseScraper):
                     case 'player-props-container':
                         event_picks.extend(self._scrape_player_prop_container(soup))
                     case 'regular-option-container':
-                        event_picks.extend(self._scrape_regular_option_container(soup, league))
+                        event_picks.extend(self._scrape_regular_option_container(soup))
                     case 'spread-container':
                         event_picks.extend(self._scrape_spread_container(soup, league))
                     case _:

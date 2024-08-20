@@ -198,16 +198,6 @@ class BaseScraper(ABC):
         raise TimeoutException(f'Unable to locate element ({by}, {value}) after {retries} retries.')
 
     @staticmethod
-    def _scroll_to_bottom(driver: WebDriver):
-        bottom = driver.execute_script('return document.body.scrollHeight')
-        while True:
-            driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
-            height = driver.execute_script('return document.body.scrollHeight')
-            if height == bottom:
-                break
-            bottom = height
-
-    @staticmethod
     def _get_schedule_base_url(league):
         '''
         Retrieves the base URL for the schedule of a given league.
