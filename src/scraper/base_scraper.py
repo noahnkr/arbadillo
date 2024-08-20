@@ -19,12 +19,12 @@ class BaseScraper(ABC):
         self.book_name = book_name
         self.book_domain = book_domain
 
-    def scrape_events(self, event_urls, driver: WebDriver) -> tuple[ScrapedEvent, list[ScrapedPick]]:
+    def scrape_events(self, league, event_urls, driver: WebDriver) -> tuple[ScrapedEvent, list[ScrapedPick]]:
         event_picks = []
         for event, url in event_urls:
             try:
                 print(f'Scraping event: {event}')
-                picks = self.scrape_event_page(event, url, driver)
+                picks = self.scrape_event_page(league, event, url, driver)
                 event_picks.append((event, picks))
             except Exception as e:
                 print(f'{type(e).__name__} encountered while scraping event `{event} in book `{self.book_name}`: {e}')
@@ -88,9 +88,11 @@ class BaseScraper(ABC):
                 participants = row.find_all('span', class_='Table__Team')
                 if len(participants) == 2:
                     away = BaseScraper._get_team_abbreviation(
+                        league,
                         participants[0].find('a')['href'].split('/').pop().replace('-', ' ').upper()
                     )
                     home = BaseScraper._get_team_abbreviation(
+                        league,
                         participants[1].find('a')['href'].split('/').pop().replace('-', ' ').upper()
                     )
 
@@ -220,23 +222,24 @@ class BaseScraper(ABC):
         return SCHEDULE_BASE_URL[league]
 
     @staticmethod
-    def _get_team_abbreviation(team_name):
+    def _get_team_abbreviation(league, team_name):
         '''
         Converts any form of team name into its respective abbreviation.
 
         Args:
+            league (str): The league of the team.
             team_name (str): The team name to convert.
             
         Returns:
             str: The abbreviation of the team.
 
         Raises:
-            KeyError if the team name does not exist in the `TEAM_ACRONYMS~ dictionary.
+            KeyError if the league and team name do not exist in the `TEAM_ACRONYMS` dictionary.
         '''
-        return TEAM_ACRONYMS[team_name]
+        return TEAM_ACRONYMS[league][team_name]
 
     @staticmethod
-    def _get_market_name(market_name):
+    def _normalize_market_name(market_name):
         team = None
         if ':' in market_name:
             market_name_parts = market_name.split(':')
