@@ -12,7 +12,7 @@ class ScrapedEvent:
         self.books = []
 
     def __str__(self):
-        return f'{self.league}_{self.away_team}@{self.home_team}_{self.start_time.isoformat()}'
+        return f'({self.league}) {self.away_team} vs. {self.home_team} - {self.start_time.isoformat()}'
     
     def __eq__(self, other):
         if isinstance(other, ScrapedEvent):
@@ -50,7 +50,7 @@ class ScrapedPick:
         self.player = player
 
     def __str__(self):
-        return f'{self.market}_{self.team}_{self.line}_{self.odds}_{self.outcome}_{self.player}'
+        return f'{self.player} ({self.team}) {self.market}: {self.outcome} {self.line} ({self.odds})'
 
     def __eq__(self, other):
         if isinstance(other, ScrapedPick):

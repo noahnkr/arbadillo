@@ -1,5 +1,8 @@
 __pycache__/
 
+# Debug
+*.log
+
 # Database
 data/
 *.sqlite3

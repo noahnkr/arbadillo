@@ -10,6 +10,7 @@ from .base_scraper import BaseScraper
 from .models import ScrapedEvent, ScrapedPick
 
 from utils import (
+    logger,
     ScraperError, LeagueNotFoundError,
     EventNotFoundError, BlockNotFoundError,
     UnsupportedBlockType,
@@ -52,10 +53,12 @@ class BetMGMScraper(BaseScraper):
                 away_team = BetMGMScraper._get_team_abbreviation(league, participants[0].text.strip().upper())
                 home_team = BetMGMScraper._get_team_abbreviation(league, participants[1].text.strip().upper())
             else:
+                logger.error(f'Missing participant information. Expected: 2, Actual: {len(participants)}')
                 raise ValueError('Missing participant information.')
 
             return away_team, home_team, start_time, active
         except AttributeError as e:
+            logger.error(f'Error parsing event info: {e}')
             raise ScraperError(f'Error parsing event info: {e}')
 
     @staticmethod
@@ -76,7 +79,6 @@ class BetMGMScraper(BaseScraper):
 
     def scrape_event_urls(self, league, events, driver: WebDriver):
         driver.get(self._get_book_base_url(league))
-        # Load all event links
         self._scroll_to_bottom(driver)
         time.sleep(2)
 
@@ -85,6 +87,7 @@ class BetMGMScraper(BaseScraper):
                 driver, By.CSS_SELECTOR, 'ms-six-pack-event.grid-event', multiple=True, refresh=True
             )
         except Exception as e:
+            logger.error(f'{type(e).__name__} encountered while loading events: {e}')
             raise LeagueNotFoundError(f'{type(e).__name__} encountered while loading events: {e}')
         
         event_urls = []
@@ -100,7 +103,7 @@ class BetMGMScraper(BaseScraper):
                 if scraped_event in events:
                     event_urls.append((scraped_event, event_url))
             except Exception as e:
-                print(f'{type(e).__name__} encountered while getting event info for league `{league}`: {e}')
+                logger.error(f'{type(e).__name__} encountered while getting event info for league `{league}`: {e}')
         
         return event_urls
 
@@ -113,7 +116,7 @@ class BetMGMScraper(BaseScraper):
             )
             all_button.click()
         except Exception as e:
-            print(f'{type(e).__name__} encountered while clicking all button in event `{event}`: {e}')
+            logger.error(f'{type(e).__name__} encountered while clicking all button in event `{event}`: {e}')
 
         try:
             # Wait for blocks to load
@@ -121,6 +124,7 @@ class BetMGMScraper(BaseScraper):
                 driver, By.CSS_SELECTOR, 'ms-option-panel.option-panel', multiple=True, refresh=True, explicit_wait=2
             )
         except Exception as e:
+            logger.error(f'Unable to load event blocks in event `{event}')
             raise EventNotFoundError(f'Unable to load event blocks in event `{event}') from e
 
         block_soup = []
@@ -130,7 +134,7 @@ class BetMGMScraper(BaseScraper):
                 block_title = block.find_element(By.CSS_SELECTOR, 'span.market-name').text.strip()
                 self._normalize_market_name(block_title)
             except Exception as e:
-                print(f'{type(e).__name__} encountered while getting block title: {e}')
+                logger.error(f'{type(e).__name__} encountered while getting block title: {e}')
                 continue
 
             try:
@@ -143,7 +147,7 @@ class BetMGMScraper(BaseScraper):
                     expand_button = block.find_element(By.CSS_SELECTOR, 'div.option-group-name.clickable')
                     expand_button.click()
             except Exception as e:
-                print(f'{type(e).__name__} encountered while expanding block in event `{event}`: {e}')
+                logger.error(f'{type(e).__name__} encountered while expanding block in event `{event}`: {e}')
                 
             try:
                 # If there is a show more button, click it to expose more picks
@@ -151,7 +155,7 @@ class BetMGMScraper(BaseScraper):
                 if show_more_button:
                     show_more_button[0].click()
             except Exception as e:
-                print(f'{type(e).__name__} encountered while clicking `Show More` in `{event}`: {e}')
+                logger.error(f'{type(e).__name__} encountered while clicking `Show More` in `{event}`: {e}')
 
             # Save block HTML info
             block_soup.append(BeautifulSoup(
@@ -164,6 +168,7 @@ class BetMGMScraper(BaseScraper):
         for soup in block_soup:
             try:
                 block_type = soup.select_one('div.option-group-container')['class'][1]
+                logger.info(f'Scraping block `{block_type}`')
                 match block_type:
                     case 'six-pack-container':
                         event_picks.extend(self._scrape_six_pack_container(soup, league))
@@ -174,11 +179,11 @@ class BetMGMScraper(BaseScraper):
                     case 'regular-option-container':
                         event_picks.extend(self._scrape_regular_option_container(soup, league))
                     case 'spread-container':
-                        event_picks.extend(self._scrape_spread_container(soup))
+                        event_picks.extend(self._scrape_spread_container(soup, league))
                     case _:
                         raise UnsupportedBlockType(f'{block_type} is not supported')
             except Exception as e:
-                print(f'{type(e).__name__} encountered while scraping block `{block_type}` in `{event}`: {e}')
+                logger.error(f'{type(e).__name__} encountered while scraping `{block_type}` in `{event}`: {e}')
 
         return event_picks
 

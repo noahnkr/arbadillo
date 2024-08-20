@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from config import Config
 import time
+from utils import logger
 
 from .models import ScrapedEvent, ScrapedBook, ScrapedPick
 
@@ -23,11 +24,11 @@ class BaseScraper(ABC):
         event_picks = []
         for event, url in event_urls:
             try:
-                print(f'Scraping event: {event}')
+                logger.info(f'Scraping event `{event}`')
                 picks = self.scrape_event_page(league, event, url, driver)
                 event_picks.append((event, picks))
             except Exception as e:
-                print(f'{type(e).__name__} encountered while scraping event `{event} in book `{self.book_name}`: {e}')
+                logger.error(f'{type(e).__name__} encountered while scraping `{event} in `{self.book_name}`: {e}')
         return event_picks
 
     @abstractmethod
@@ -188,11 +189,12 @@ class BaseScraper(ABC):
                     )
                     return element
             except (TimeoutException, NoSuchElementException) as e:
-                print(f'Attempt {attempt + 1}/{retries}: Element(s) ({by}, {value}) not found.')
+                logger.warning(f'Attempt {attempt + 1}/{retries}: Element(s) ({by}, {value}) not found.')
                 if (attempt + 1) % retries == 0 and refresh:
                     driver.refresh()
                     time.sleep(explicit_wait)
 
+        logger.error(f'Unable to locate element ({by}, {value}) after {retries} retries.')
         raise TimeoutException(f'Unable to locate element ({by}, {value}) after {retries} retries.')
 
     @staticmethod
