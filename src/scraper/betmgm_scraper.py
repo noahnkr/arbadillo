@@ -18,10 +18,11 @@ from utils import (
 class BetMGMScraper(BaseScraper):
 
     def __init__(self):
+        # TODO: Handle different states
         super().__init__('betmgm', 'https://sports.il.betmgm.com')
 
     @staticmethod
-    def _get_event_info(soup: BeautifulSoup):
+    def _get_event_info(soup: BeautifulSoup, league):
         try:
             event_info = soup.find('ms-event-info', class_='grid-event-info')
             starting_time = event_info.find('ms-prematch-timer', class_='starting-time')
@@ -48,8 +49,8 @@ class BetMGMScraper(BaseScraper):
 
             participants = soup.find_all('div', class_='participant')
             if len(participants) == 2:
-                away_team = BetMGMScraper._get_team_abbreviation(participants[0].text.strip().upper())
-                home_team = BetMGMScraper._get_team_abbreviation(participants[1].text.strip().upper())
+                away_team = BetMGMScraper._get_team_abbreviation(league, participants[0].text.strip().upper())
+                home_team = BetMGMScraper._get_team_abbreviation(league, participants[1].text.strip().upper())
             else:
                 raise ValueError('Missing participant information.')
 
@@ -92,7 +93,7 @@ class BetMGMScraper(BaseScraper):
                 event_html = event_element.get_attribute('innerHTML')
                 event_soup = BeautifulSoup(event_html, 'lxml')
                 event_url = f'{self.book_domain}{event_soup.select_one('a.grid-info-wrapper')['href']}'
-                event_info = self._get_event_info(event_soup)
+                event_info = self._get_event_info(event_soup, league)
                 scraped_event = ScrapedEvent(
                     league, event_info[0], event_info[1], event_info[2], event_info[3]
                 )
@@ -103,7 +104,7 @@ class BetMGMScraper(BaseScraper):
         
         return event_urls
 
-    def scrape_event_page(self, event, url, driver: WebDriver):
+    def scrape_event_page(self, league, event, url, driver: WebDriver):
         driver.get(url)
         try:
             # Click `All` button to show all available betting props
@@ -127,7 +128,7 @@ class BetMGMScraper(BaseScraper):
             try:
                 # If the market name is not supported, continue to the next block
                 block_title = block.find_element(By.CSS_SELECTOR, 'span.market-name').text.strip()
-                self._get_market_name(block_title)
+                self._normalize_market_name(block_title)
             except Exception as e:
                 print(f'{type(e).__name__} encountered while getting block title: {e}')
                 continue
@@ -165,13 +166,13 @@ class BetMGMScraper(BaseScraper):
                 block_type = soup.select_one('div.option-group-container')['class'][1]
                 match block_type:
                     case 'six-pack-container':
-                        event_picks.extend(self._scrape_six_pack_container(soup))
+                        event_picks.extend(self._scrape_six_pack_container(soup, league))
                     case 'over-under-container':
                         event_picks.extend(self._scrape_over_under_container(soup))
                     case 'player-props-container':
                         event_picks.extend(self._scrape_player_prop_container(soup))
                     case 'regular-option-container':
-                        event_picks.extend(self._scrape_regular_option_container(soup))
+                        event_picks.extend(self._scrape_regular_option_container(soup, league))
                     case 'spread-container':
                         event_picks.extend(self._scrape_spread_container(soup))
                     case _:
@@ -181,7 +182,7 @@ class BetMGMScraper(BaseScraper):
 
         return event_picks
 
-    def _scrape_six_pack_container(self, soup: BeautifulSoup):
+    def _scrape_six_pack_container(self, soup: BeautifulSoup, league):
         game_lines = []
 
         rows = soup.find_all('div', class_='option-row')
@@ -190,6 +191,7 @@ class BetMGMScraper(BaseScraper):
 
         for row in rows:
             team = self._get_team_abbreviation(
+                league,
                 row.find('div', class_='six-pack-player-name')
                     .get_text(strip=True).upper()
             )
@@ -224,7 +226,7 @@ class BetMGMScraper(BaseScraper):
     def _scrape_over_under_container(self, soup: BeautifulSoup):
         over_unders = []
         block_title = soup.select_one('span.market-name').get_text(strip=True)
-        market, team = self._get_market_name(block_title)
+        market, team = self._normalize_market_name(block_title)
 
         options = soup.find_all('ms-option', class_='option')
         for option in options:
@@ -248,7 +250,7 @@ class BetMGMScraper(BaseScraper):
     def _scrape_player_prop_container(self, soup: BeautifulSoup):
         player_props = []
         block_title = soup.select_one('span.market-name').get_text(strip=True)
-        market, team = self._get_market_name(block_title)
+        market, team = self._normalize_market_name(block_title)
 
         players = soup.find_all('div', class_='player-props-player-name')
         options = soup.find_all('ms-option', class_='option')
@@ -280,7 +282,7 @@ class BetMGMScraper(BaseScraper):
     def _scrape_regular_option_container(self, soup: BeautifulSoup):
         options = []
         block_title = soup.select_one('span.market-name').get_text(strip=True)
-        market, team = self._get_market_name(block_title)
+        market, team = self._normalize_market_name(block_title)
 
         outcomes = soup.select('div.name')
         odds = soup.select('div.value')
@@ -292,16 +294,17 @@ class BetMGMScraper(BaseScraper):
 
         return options
 
-    def _scrape_spread_container(self, soup: BeautifulSoup):
+    def _scrape_spread_container(self, soup: BeautifulSoup, league):
         spreads = []
         block_title = soup.select_one('span.market-name').get_text(strip=True)
-        market, _ = self._get_market_name(block_title)
+        market, _ = self._normalize_market_name(block_title)
 
         participants = soup.select('div.option-group-header span')
         options = soup.select('div.option-indicator')
 
         for i, option in enumerate(options):
             team = self._get_team_abbreviation(
+                league,
                 participants[i % 2].get_text(strip=True).upper()
             )
             line = float(

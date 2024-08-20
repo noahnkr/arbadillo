@@ -37,7 +37,7 @@ def scrape_odds(leagues, books, threads):
                 print(f'Driver {i}:\n{'\n'.join(u)}')
 
             with ThreadPoolExecutor(threads) as thread:
-                results = thread.map(book_scraper.scrape_events, event_url_slices, book_drivers)
+                results = thread.map(book_scraper.scrape_events, league, event_url_slices, book_drivers)
                 for result in results:
                     for event, picks in result:
                         book_scraper._add_picks_to_matching_event(event, league_events, picks)
