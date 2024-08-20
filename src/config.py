@@ -67,7 +67,6 @@ class Config:
 
     # Scraper Configuration
     SCRAPING_INTERVAL = int(os.environ.get('SCRAPING_INTERVAL') or 60)
-    RETRY_ATTEMPTS = int(os.environ.get('RETRY_ATTEMPTS') or 3)
     LEAGUES = os.environ.get('LEAGUES').split(',')
     BOOKS =  os.environ.get('BOOKS').split(',')
 

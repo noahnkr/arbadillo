@@ -12,7 +12,7 @@ class ScrapedEvent:
         self.books = []
 
     def __str__(self):
-        return f'{self.league}_{self.away_team}@{self.home_team}_{self.start_time}'
+        return f'{self.league}_{self.away_team}@{self.home_team}_{self.start_time.isoformat()}'
     
     def __eq__(self, other):
         if isinstance(other, ScrapedEvent):

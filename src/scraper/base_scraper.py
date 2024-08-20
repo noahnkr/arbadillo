@@ -1,10 +1,13 @@
 from abc import ABC, abstractmethod
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from bs4 import BeautifulSoup
 from datetime import datetime
 from config import Config
+import time
 
 from .models import ScrapedEvent, ScrapedBook, ScrapedPick
 
@@ -12,10 +15,11 @@ from utils import LEAGUES, TEAM_ACRONYMS, SCHEDULE_BASE_URL, BOOK_BASE_URL, MARK
 
 class BaseScraper(ABC):
 
-    def __init__(self, book_name):
+    def __init__(self, book_name, book_domain):
         self.book_name = book_name
+        self.book_domain = book_domain
 
-    def scrape_events(self, event_urls, driver):
+    def scrape_events(self, event_urls, driver: WebDriver) -> tuple[ScrapedEvent, list[ScrapedPick]]:
         event_picks = []
         for event, url in event_urls:
             try:
@@ -66,9 +70,7 @@ class BaseScraper(ABC):
         events = []
         schedule_url = BaseScraper._get_schedule_base_url(league)
         driver.get(schedule_url)
-        WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
-            EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.ResponsiveTable'))
-        )
+        BaseScraper._locate_element_with_retries(driver, By.CSS_SELECTOR, 'div.ResponsiveTable')
         html = driver.page_source
         soup = BeautifulSoup(html, 'lxml')
 
@@ -131,6 +133,7 @@ class BaseScraper(ABC):
         
         raise ValueError(f'Matching event {event} not found.')
 
+
     def _get_book_base_url(self, league):
         '''
         Retrieves the base URL for the specified league from the stored book's base URLs.
@@ -148,6 +151,57 @@ class BaseScraper(ABC):
             KeyError: If the book name or league does not exist in the `BOOK_BASE_URL` dictionary.
         '''
         return BOOK_BASE_URL[self.book_name][league]
+
+    @staticmethod    
+    def _locate_element_with_retries(driver: WebDriver, by: By, value, multiple=False, retries=3, refresh=False, explicit_wait=2):
+        '''
+        Attempts to locate one or more elements on a webpage with retries and page refreshes if the element(s) is not found.
+
+        Args:
+            - driver: The Selenium WebDriver instance.
+            - by: The method to locate elements (e.g., By.ID, By.CSS_SELECTOR, etc.).
+            - value: The value of the locator (e.g., the ID, class name, CSS selector, etc.).
+            - retries: The number of times to retry locating the element(s).
+            - refresh: If the webdriver should refresh the page on the last retry.
+            - multiple: Boolean indicating whether to locate a single element (False) or a list of elements (True).
+
+        Returns:
+            - The WebElement if locating a single element, or a list of WebElements if locating multiple elements.
+            - Returns None if the element(s) are not found after all retries and refreshes.
+
+        Raises:
+            TimeoutException if the driver is unable to locate the element after the number of retries.
+        '''
+        for attempt in range(retries):
+            try:
+                if multiple:
+                    elements = WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
+                        EC.presence_of_all_elements_located((by, value))
+                    )
+                    if elements: # Ensure list is not empty
+                        return elements
+                else:
+                    element = WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
+                        EC.presence_of_element_located((by, value))
+                    )
+                    return element
+            except (TimeoutException, NoSuchElementException) as e:
+                print(f'Attempt {attempt + 1}/{retries}: Element(s) ({by}, {value}) not found.')
+                if (attempt + 1) % retries == 0 and refresh:
+                    driver.refresh()
+                    time.sleep(explicit_wait)
+
+        raise TimeoutException(f'Unable to locate element ({by}, {value}) after {retries} retries.')
+
+    @staticmethod
+    def _scroll_to_bottom(driver: WebDriver):
+        bottom = driver.execute_script('return document.body.scrollHeight')
+        while True:
+            driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
+            height = driver.execute_script('return document.body.scrollHeight')
+            if height == bottom:
+                break
+            bottom = height
 
     @staticmethod
     def _get_schedule_base_url(league):

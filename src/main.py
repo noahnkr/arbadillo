@@ -12,7 +12,7 @@ from api.models import Event, Sportsbook, Pick
 
 def main():
     start_time = time.time()
-    odds = scrape_odds(Config.LEAGUES, Config.BOOKS)
+    odds = scrape_odds(Config.LEAGUES, Config.BOOKS, Config.WEBDRIVER_THREADS)
     print(f'Execution Time: {time.time() - start_time}s')
 
     with open('data/export.json', 'w') as f:

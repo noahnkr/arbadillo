@@ -1,5 +1,4 @@
 from selenium.webdriver.remote.webdriver import WebDriver
-from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup, PageElement
@@ -19,7 +18,7 @@ from utils import (
 class BetMGMScraper(BaseScraper):
 
     def __init__(self):
-        super().__init__('betmgm')
+        super().__init__('betmgm', 'https://sports.il.betmgm.com')
 
     @staticmethod
     def _get_event_info(soup: BeautifulSoup):
@@ -74,15 +73,15 @@ class BetMGMScraper(BaseScraper):
 
         return datetime.combine(event_date, event_time)
 
-    def scrape_event_urls(self, league, events, driver):
-        # Initialize a single WebDriver to scrape the initial list of events
+    def scrape_event_urls(self, league, events, driver: WebDriver):
         driver.get(self._get_book_base_url(league))
+        # Load all event links
+        self._scroll_to_bottom(driver)
+        time.sleep(2)
 
         try:
-            event_elements = WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
-                EC.presence_of_all_elements_located(
-                    (By.CSS_SELECTOR, 'ms-six-pack-event.grid-event')
-                )
+            event_elements = self._locate_element_with_retries(
+                driver, By.CSS_SELECTOR, 'ms-six-pack-event.grid-event', multiple=True, refresh=True
             )
         except Exception as e:
             raise LeagueNotFoundError(f'{type(e).__name__} encountered while loading events: {e}')
@@ -91,8 +90,8 @@ class BetMGMScraper(BaseScraper):
         for event_element in event_elements:
             try:
                 event_html = event_element.get_attribute('innerHTML')
-                event_url = event_element.find_element(By.CSS_SELECTOR, 'a.grid-info-wrapper').get_attribute('href')
                 event_soup = BeautifulSoup(event_html, 'lxml')
+                event_url = f'{self.book_domain}{event_soup.select_one('a.grid-info-wrapper')['href']}'
                 event_info = self._get_event_info(event_soup)
                 scraped_event = ScrapedEvent(
                     league, event_info[0], event_info[1], event_info[2], event_info[3]
@@ -104,14 +103,12 @@ class BetMGMScraper(BaseScraper):
         
         return event_urls
 
-    def scrape_event_page(self, event, url, driver):
+    def scrape_event_page(self, event, url, driver: WebDriver):
         driver.get(url)
         try:
             # Click `All` button to show all available betting props
-            all_button = WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
-                EC.element_to_be_clickable(
-                    (By.CSS_SELECTOR, 'ul.event-details-pills-list li:last-child button.ds-pill')
-                )
+            all_button = self._locate_element_with_retries(
+                driver, By.CSS_SELECTOR, 'ul.event-details-pills-list li:last-child button.ds-pill'
             )
             all_button.click()
         except Exception as e:
@@ -119,10 +116,8 @@ class BetMGMScraper(BaseScraper):
 
         try:
             # Wait for blocks to load
-            blocks = WebDriverWait(driver, Config.WEBDRIVER_WAIT_TIME).until(
-                EC.presence_of_all_elements_located(
-                    (By.CSS_SELECTOR, 'ms-option-panel.option-panel')
-                )
+            blocks = self._locate_element_with_retries(
+                driver, By.CSS_SELECTOR, 'ms-option-panel.option-panel', multiple=True, refresh=True, explicit_wait=2
             )
         except Exception as e:
             raise EventNotFoundError(f'Unable to load event blocks in event `{event}') from e
@@ -160,7 +155,7 @@ class BetMGMScraper(BaseScraper):
             # Save block HTML info
             block_soup.append(BeautifulSoup(
                 block.get_attribute('innerHTML'), 'lxml'
-                )   
+                )
             )
 
         # Scrape each block
