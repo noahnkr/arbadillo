@@ -1,0 +1,11 @@
+scrapy
+scrapy-redis
+celery
+celery[redis]
+redis
+flask
+alembic
+SQLAlchemy
+psycopg2-binary
+python-dotenv
+requests
