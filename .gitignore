@@ -1,0 +1,12 @@
+__pycache__/
+
+# Debug
+*.log
+
+# Database
+data/
+*.sqlite3
+*.json
+
+# Environment Variables
+.env
