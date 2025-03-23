@@ -2,6 +2,7 @@ import scrapy
 import redis
 from datetime import datetime
 
+from scraper.common.teams import normalize_team_name
 from scraper.common.urls import SCHEDULE_URLS
 from scraper.settings import REDIS_HOST, REDIS_PORT
 
@@ -37,35 +38,39 @@ class ScheduleSpider(scrapy.Spider):
 			# Normalize date format
 			date = datetime.strptime(_date.strip(), "%A, %B %d, %Y").strftime("%Y-%m-%d")
 			for row in table.css("tbody.Table__TBODY tr"):
-				teams = row.css("span.Table__Team > a:last-child::text").getall()
+				event = self._parse_row(row, league, date)
+				yield event
 
-				# Time column
-				_time = row.css("td.date__col a::text").get()
+	def _parse_row(self, row, league, date):
+		teams = row.css("span.Table__Team > a:last-child::text").getall()
 
-				# If element exists, event is either upcoming or currently active
-				if _time:
-					if _time.strip() == "LIVE":
-						time = None
-						status = "ACTIVE"
-					else:
-						time = datetime.strptime(_time, "%I:%M %p").strftime("%H:%M")
-						status = "UPCOMING"
-				# Event has completed
-				else:
-					time = None
-					status = "COMPLETED"
+		# Time column
+		_time = row.css("td.date__col a::text").get()
 
-				if len(teams) == 2:
-					away = teams[0].strip().replace(" ", "-")
-					home = teams[1].strip().replace(" ", "-")
+		# If element exists, event is either upcoming or currently active
+		if _time:
+			if _time.strip() == "LIVE":
+				time = None
+				status = "ACTIVE"
+			else:
+				time = datetime.strptime(_time, "%I:%M %p").strftime("%H:%M")
+				status = "UPCOMING"
+		# Event has completed
+		else:
+			time = None
+			status = "COMPLETED"
 
-					event_id = f"{league}_{away}@{home}_{date}"
-					yield {
-						"event_id": event_id,
-						"start_time": time,
-						"league": league,
-						"date": date,
-						"away": away,
-						"home": home,
-						"status": status,
-					}
+		if len(teams) == 2:
+			away = normalize_team_name(teams[0], league)
+			home = normalize_team_name(teams[1], league)
+
+			event_id = f"{league}_{away}@{home}_{date}"
+			return {
+				"event_id": event_id,
+				"start_time": time,
+				"league": league,
+				"date": date,
+				"away": away,
+				"home": home,
+				"status": status,
+			}
