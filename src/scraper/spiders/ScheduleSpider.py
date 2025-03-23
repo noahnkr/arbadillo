@@ -36,41 +36,49 @@ class ScheduleSpider(scrapy.Spider):
 				continue
 
 			# Normalize date format
-			date = datetime.strptime(_date.strip(), "%A, %B %d, %Y").strftime("%Y-%m-%d")
+			date = datetime.strptime(_date.strip(), "%A, %B %d, %Y").date()
 			for row in table.css("tbody.Table__TBODY tr"):
 				event = self._parse_row(row, league, date)
+				events.append(event)
 				yield event
+
+		return events
+
 
 	def _parse_row(self, row, league, date):
 		teams = row.css("span.Table__Team > a:last-child::text").getall()
+		if len(teams) != 2:
+			return None
 
-		# Time column
+		away = normalize_team_name(teams[0], league)
+		home = normalize_team_name(teams[1], league)
+		event_id = f"{league}_{away}@{home}_{date.strftime('%Y-%m-%d')}"
+		redis_key = f"start_time:{event_id}"
+
+		# Time element
 		_time = row.css("td.date__col a::text").get()
 
-		# If element exists, event is either upcoming or currently active
+		# If time element exists, event is either upcoming or currently active
 		if _time:
 			if _time.strip() == "LIVE":
-				time = None
+				start_time = r.get(redis_key)
 				status = "ACTIVE"
 			else:
-				time = datetime.strptime(_time, "%I:%M %p").strftime("%H:%M")
+				time = datetime.strptime(_time, "%I:%M %p").time()
+				combined_dt = datetime.combine(date, time)
+				start_time = combined_dt.strftime("%Y-%m-%dT%H:%M")
+				r.set(redis_key, start_time, ex=60 * 60 * 24) # Cache the starting time for 1 day
 				status = "UPCOMING"
-		# Event has completed
+		# Otherwise, the event has completed
 		else:
-			time = None
+			start_time = r.get(redis_key)
 			status = "COMPLETED"
 
-		if len(teams) == 2:
-			away = normalize_team_name(teams[0], league)
-			home = normalize_team_name(teams[1], league)
-
-			event_id = f"{league}_{away}@{home}_{date}"
-			return {
-				"event_id": event_id,
-				"start_time": time,
-				"league": league,
-				"date": date,
-				"away": away,
-				"home": home,
-				"status": status,
-			}
+		return {
+			"event_id": event_id,
+			"start_time": start_time,
+			"league": league,
+			"away": away,
+			"home": home,
+			"status": status,
+		}
