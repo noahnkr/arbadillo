@@ -8,5 +8,8 @@ services:
     scrapy:
         build: .
         container_name: scrapy
+        working_dir: /app
+        command: ['scrapy', 'crawl', 'schedule', '-a', 'leagues=nba']
         depends_on:
             - redis
+        env_file: .env
