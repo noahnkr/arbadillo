@@ -1,11 +1,11 @@
-import os
 import scrapy
 import redis
 from datetime import datetime
 
 from scraper.common.urls import SCHEDULE_URLS
+from scraper.settings import REDIS_HOST, REDIS_PORT
 
-r = redis.Redis()
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 class ScheduleSpider(scrapy.Spider):
 	name = "schedule"
@@ -29,17 +29,20 @@ class ScheduleSpider(scrapy.Spider):
 		events = []
 		for table in response.css("div.ResponsiveTable"):
 			# Locate date from table title
-			_date = table.css(".Table__Title::text").get().strip()
+			_date = table.css(".Table__Title::text").get()
+
+			if not _date:
+				continue
 
 			# Normalize date format
-			date = datetime.strptime(_date, "%A, %B %d, %Y").strftime("%Y-%m-%d")
+			date = datetime.strptime(_date.strip(), "%A, %B %d, %Y").strftime("%Y-%m-%d")
 			for row in table.css("tbody.Table__TBODY tr"):
 				teams = row.css("span.Table__Team > a:last-child::text").getall()
 
 				# Time column
 				_time = row.css("td.date__col a::text").get()
 
-				# If element exists, event is either upcoming or live
+				# If element exists, event is either upcoming or currently active
 				if _time:
 					if _time.strip() == "LIVE":
 						time = None
@@ -47,7 +50,6 @@ class ScheduleSpider(scrapy.Spider):
 					else:
 						time = datetime.strptime(_time, "%I:%M %p").strftime("%H:%M")
 						status = "UPCOMING"
-
 				# Event has completed
 				else:
 					time = None
@@ -60,10 +62,10 @@ class ScheduleSpider(scrapy.Spider):
 					event_id = f"{league}_{away}@{home}_{date}"
 					yield {
 						"event_id": event_id,
+						"start_time": time,
 						"league": league,
 						"date": date,
 						"away": away,
 						"home": home,
-						"time": time,
 						"status": status,
 					}
