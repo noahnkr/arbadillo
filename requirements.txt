@@ -1,4 +1,8 @@
+Django
+djangorestframework
+psycopg2-binary
+celery[redis]
+redis
 scrapy
 scrapy-redis
-redis
 python-dotenv
