@@ -9,4 +9,6 @@ data/
 *.json
 
 # Environment Variables
+venv/
 .env
+

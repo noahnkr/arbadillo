@@ -5,4 +5,3 @@ celery[redis]
 redis
 scrapy
 scrapy-redis
-python-dotenv
