@@ -3,7 +3,7 @@ import sys
 
 def main():
 	env = os.getenv('DJANGO_ENV', 'dev')
-	os.environ.setdefault('DJANGO_SETTINGS_MODULE', f'config.settings.{env}')
+	os.environ.setdefault('DJANGO_SETTINGS_MODULE', f'core.settings.{env}')
 
 	from django.core.management import execute_from_command_line
 	execute_from_command_line(sys.argv)
