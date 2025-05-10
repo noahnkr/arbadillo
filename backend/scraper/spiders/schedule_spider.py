@@ -15,8 +15,7 @@ class ScheduleSpider(scrapy.Spider):
 
 
 	def start_requests(self):
-		for league in self.leagues:
-			url = SCHEDULE_URLS.get(league)
+		for league, url in SCHEDULE_URLS.items():
 			if url:
 				yield scrapy.Request(url, callback=self.parse, meta={'league': league})
 
@@ -45,6 +44,8 @@ class ScheduleSpider(scrapy.Spider):
 					# Trigger async insert/update
 					# update_event_in_db.delay(event)
 
+					yield event
+
 
 	def _parse_row(self, row, league, date):
 		try:
@@ -57,7 +58,6 @@ class ScheduleSpider(scrapy.Spider):
 			home = normalize_team_name(teams[1], league)
 		except Exception:
 			return None
-
 		event_key = create_event_key(league, away, home, date)
 
 		# Determine start time and status
