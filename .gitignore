@@ -12,3 +12,6 @@ data/
 venv/
 .env
 
+# Celery Beat
+celery-beat
+celerybeat-schedule

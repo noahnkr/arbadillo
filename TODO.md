@@ -2,8 +2,8 @@
 
 ## Infrastructure
 
--   [ ] Dockerfiles for each component
--   [ ] Docker compose
+-   [x] Dockerfiles for each component
+-   [x] Docker compose
 -   [x] Split dev and prod settings in Django
 
 ## Scraping
@@ -13,7 +13,7 @@
 -   [ ] TTL for Redis cache
 -   [ ] Redis cache cleanup
 -   [ ] Celery config
--   [ ] Redis config
+-   [x] Redis config
 
 ## Database
 
