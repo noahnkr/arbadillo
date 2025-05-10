@@ -15,7 +15,7 @@ def clean_team_name(name: str) -> str:
 def normalize_team_name(name: str, league: str) -> str:
     """Normalizes a team name to a slugified standard."""
     team_aliases = LEAGUE_ALIASES[league]
-    for standard, aliases in team_aliases:
+    for standard, aliases in team_aliases.items():
         if clean_team_name(name) in map(str.lower, aliases):
             return standard
     raise NormalizationError(f'Unkown team name `{name}` for league `{league}`')
