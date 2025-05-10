@@ -2,7 +2,8 @@ import scrapy
 import json
 from datetime import datetime
 from redis import Redis
-from common.consants import SCHEDULE_URLS
+from settings import REDIS_HOST, REDIS_PORT
+from common.constants import SCHEDULE_URLS
 from common.utils import create_event_key, normalize_team_name, current_timestamp
 from items import EventItem
 
@@ -11,7 +12,7 @@ class ScheduleSpider(scrapy.Spider):
 	
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		self.redis = Redis()
+		self.redis = Redis(host=REDIS_HOST, port=REDIS_PORT)
 
 
 	def start_requests(self):
@@ -38,7 +39,8 @@ class ScheduleSpider(scrapy.Spider):
 				event = self._parse_row(row, league, event_date)
 				if event:
 					# Cache event in redis
-					redis_key = f'events:{event['event_key']}'
+					event_key = event['event_key']
+					redis_key = f'events:{event_key}'
 					self.redis.set(redis_key, json.dumps(dict(event)), ex=60 * 60 * 24)
 
 					# Trigger async insert/update

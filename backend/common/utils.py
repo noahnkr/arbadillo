@@ -1,4 +1,4 @@
-from .consants import LEAGUE_ALIASES
+from .constants import LEAGUE_ALIASES
 from .exceptions import NormalizationError
 from datetime import datetime
 import hashlib
@@ -24,7 +24,8 @@ def normalize_team_name(name: str, league: str) -> str:
 
 def create_event_key(league:str, away:str, home:str, date: datetime) -> str:
     """Generate event key (primary ID) for database and Redis."""
-    return f'{league}_{away}@{home}_{date.strftime('%Y-%m-%d')}'
+    date_str = date.strftime('%Y-%m-%d')
+    return f'{league}_{away}@{home}_{date_str}'
 
 
 def generate_odds_hash(odds_data: dict) -> str:
