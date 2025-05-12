@@ -9,7 +9,9 @@ import re
 
 def clean_team_name(name: str) -> str:
     """Trim and normalize team names."""
-    return re.sub(r"\s+", " ", name).strip().lower()
+    name = re.sub(r"[-_./\\]", " ", name)
+    name = re.sub(r"\s+", " ", name)
+    return name.strip().lower()
 
 
 def normalize_team_name(name: str, league: str) -> str:
