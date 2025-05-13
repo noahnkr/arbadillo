@@ -1,15 +1,19 @@
 from ..celery import app
+from subprocess import run
+from common.constants import SPORTSBOOKS
 
 @app.task
 def scrape_schedule():
-    from scrapy.crawler import CrawlerProcess
-    from scrapy.utils.project import get_project_settings
+    run([
+        'scrapy', 'crawl', 'schedule'
+    ])
 
-    process = CrawlerProcess(get_project_settings())
-    process.crawl('schedule')
-    process.start()
 
 
 @app.task
-def find_event_url(sportsbook, event_key):
-    pass
+def scrape_sportsbook_schedule(sportsbook):
+    for sportsbook in SPORTSBOOKS:
+        run([
+            'scrapy', 'crawl', sportsbook,
+            '-a', 'mode=schedule',
+        ])
