@@ -14,8 +14,11 @@ def scrape_odds_for_event(sportsbook, event_key, url):
     from subprocess import run
     run([
         'scrapy', 'crawl', sportsbook,
+        '-a', f'event_key={event_key}',
+        '-a', f'url={url}'
     ])
 
+@app.task
 def scrape_odds():
     for event_key in redis.smembers('events:active'):
         event_key = event_key.decode('utf-8')
