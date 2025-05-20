@@ -36,7 +36,7 @@ class ScheduleSpider(scrapy.Spider):
 
 			rows = table.css('tbody.Table__TBODY tr')
 			for row in rows:
-				event = self._parse_row(row, league, event_date)
+				event = self._parse_row(row, league, event_date.strftime('%Y-%m-%d'))
 				if event:
 					# Cache event in redis
 					event_key = event['event_key']
@@ -60,7 +60,7 @@ class ScheduleSpider(scrapy.Spider):
 			home = normalize_team_name(teams[1], league)
 		except Exception:
 			return None
-		event_key = create_event_key(league, away, home, date)
+		event_key = create_event_key(league, date, away, home)
 
 		# Determine start time and status
 		raw_time = row.css('td.date__col a::text').get()
