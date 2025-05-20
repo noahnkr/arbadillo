@@ -20,12 +20,12 @@ SCHEDULE_URLS = {
     'ncaab': '',
 }
 
-SPORTSBOOK_URLS = {
-    'fanduel': '', 
-    'draftkings': '',
-    'betmgm': '',
-    'bet365': '', 
-    'espnbet': '',
+BETMGM_URLS = {
+    'nba': 'https://sports.il.betmgm.com/en/sports/basketball-7/betting/usa-9/nba-6004',
+    'mlb': 'https://sports.il.betmgm.com/en/sports/baseball-23/betting/usa-9/mlb-75',
+    'nfl': '',
+    'ncaaf': '',
+    'ncaab': '',
 }
 
 NFL_ALIASES = {
