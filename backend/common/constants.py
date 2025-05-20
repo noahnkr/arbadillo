@@ -14,18 +14,18 @@ SPORTS_LEAGUES = {
 
 SCHEDULE_URLS = {
     'nba': 'https://www.espn.com/nba/schedule',
-    'mlb': 'https://www.espn.com/nba/schedule',
+    'mlb': 'https://www.espn.com/mlb/schedule',
     'nfl': '',
     'ncaaf': '',
     'ncaab': '',
 }
 
-SPORTSBOOK_URLS = {
-    'fanduel': '', 
-    'draftkings': '',
-    'betmgm': '',
-    'bet365': '', 
-    'espnbet': '',
+BETMGM_URLS = {
+    'nba': 'https://sports.il.betmgm.com/en/sports/basketball-7/betting/usa-9/nba-6004',
+    'mlb': 'https://sports.il.betmgm.com/en/sports/baseball-23/betting/usa-9/mlb-75',
+    'nfl': '',
+    'ncaaf': '',
+    'ncaab': '',
 }
 
 NFL_ALIASES = {
@@ -109,7 +109,7 @@ MLB_ALIASES = {
     'detroit-tigers': ['DET', 'Detroit', 'Tigers', 'Detroit Tigers'],
     'houston-astros': ['HOU', 'Houston', 'Astros', 'Houston Astros'],
     'kansas-city-royals': ['KC', 'Kansas City', 'Royals', 'Kansas City Royals'],
-    'los-angeles-angels': ['LAA', 'LA Angels', 'Angels', 'Los Angeles Angels', 'Los Angeles Angels of Anaheim'],
+    'los-angeles-angels': ['LAA', 'LA Angels', 'Angels', 'Los Angeles Angels'],
     'los-angeles-dodgers': ['LAD', 'LA Dodgers', 'Dodgers', 'Los Angeles Dodgers'],
     'miami-marlins': ['MIA', 'Miami', 'Marlins', 'Miami Marlins', 'Florida Marlins'],
     'milwaukee-brewers': ['MIL', 'Milwaukee', 'Brewers', 'Milwaukee Brewers'],
@@ -122,7 +122,7 @@ MLB_ALIASES = {
     'san-diego-padres': ['SD', 'San Diego', 'Padres', 'San Diego Padres'],
     'san-francisco-giants': ['SF', 'San Francisco', 'Giants', 'San Francisco Giants'],
     'seattle-mariners': ['SEA', 'Seattle', 'Mariners', 'Seattle Mariners'],
-    'st-louis-cardinals': ['STL', 'St. Louis', 'Cardinals', 'St. Louis Cardinals'],
+    'st-louis-cardinals': ['STL', 'St. Louis', 'St Louis', 'Cardinals', 'St. Louis Cardinals', 'St Louis Cardinals'],
     'tampa-bay-rays': ['TB', 'Tampa Bay', 'Rays', 'Tampa Bay Rays', 'Tampa Rays'],
     'texas-rangers': ['TEX', 'Texas', 'Rangers', 'Texas Rangers'],
     'toronto-blue-jays': ['TOR', 'Toronto', 'Blue Jays', 'Toronto Blue Jays'],

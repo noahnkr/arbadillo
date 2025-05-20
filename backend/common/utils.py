@@ -9,7 +9,9 @@ import re
 
 def clean_team_name(name: str) -> str:
     """Trim and normalize team names."""
-    return re.sub(r"\s+", " ", name).strip().lower()
+    name = re.sub(r"[-_./\\]", " ", name)
+    name = re.sub(r"\s+", " ", name)
+    return name.strip().lower()
 
 
 def normalize_team_name(name: str, league: str) -> str:
@@ -20,19 +22,53 @@ def normalize_team_name(name: str, league: str) -> str:
             return standard
     raise NormalizationError(f'Unkown team name `{name}` for league `{league}`')
 
+
+def extract_float(raw: str) -> float | None:
+    """Exctracts the float value from collected sportsbook data."""
+    try:
+        match = re.search(r"[-+]?\d*\.\d+|\d+", raw)
+        return float(match.group()) if match else None
+    except Exception:
+        return None
+
 # ---------- Event & Odds Helpers -----------
 
-def create_event_key(league:str, away:str, home:str, date: datetime) -> str:
+def create_event_key(league:str, date: str, away:str, home:str,) -> str:
     """Generate event key (primary ID) for database and Redis."""
-    date_str = date.strftime('%Y-%m-%d')
-    return f'{league}_{away}@{home}_{date_str}'
+    return f'{league}:{date}:{away}@{home}'
 
 
 def generate_odds_hash(odds_data: dict) -> str:
     """Create a hash to uniquely identify a specific odds line."""
-    relevant = {k: odds_data[k] for k in sorted(odds_data) if k in {'event_key', 'market', 'outcome', 'value', 'line', 'player', 'prop'}}
+    relevant = {k: odds_data[k] for k in sorted(odds_data) if k in {'event_key', 'market', 'outcome', 'line', 'value', 'player', 'prop'}}
     raw = json.dumps(relevant, sort_keys=True)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def american_to_decimal(american_odds: int) -> float:
+    """
+    Convert American odds to Decimal odds.
+    +150 -> 2.50
+    -120 -> 1.83
+    """
+    if american_odds > 0:
+        return round((american_odds / 100) + 1, 2)
+    else:
+        return round((100 / american_odds) + 1, 2)
+
+
+def decimal_to_american(decimal_odds: float) -> int:
+    """
+    Convert Decimal odds to American odds rounded to nearest 5.
+    2.50 -> +150
+    1.83 -> -120
+    """
+    if decimal_odds >= 2.0:
+        american_odds = (decimal_odds - 1) * 100
+    else:
+        american_odds = -100 / (decimal_odds - 1)
+
+    return int(round(american_odds / 5.0) * 5)
 
 # ---------- Time Helpers -----------
 
