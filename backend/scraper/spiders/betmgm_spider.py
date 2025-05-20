@@ -4,11 +4,15 @@ from datetime import datetime, timedelta
 from redis import Redis
 from settings import REDIS_HOST, REDIS_PORT
 from common.constants import BETMGM_URLS
-from common.utils import normalize_team_name, create_event_key
+from common.utils import (
+    normalize_team_name, create_event_key, decimal_to_american, 
+    current_timestamp, generate_odds_hash, extract_float
+)
+from items import OddsItem
 
 class BetMGMSpider(scrapy.Spider):
     name = 'betmgm'
-    domain = 'sports.il.betmgm.com'
+    domain = 'https://sports.il.betmgm.com'
 
     def __init__(self, mode=None, event_key=None, url=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -19,7 +23,7 @@ class BetMGMSpider(scrapy.Spider):
 
 
     def start_requests(self):
-        print('Starting BetMGM requsts...')
+        print(f'Starting {self.name} requsts')
         if self.mode == 'schedule':
             for league, url in BETMGM_URLS.items():
                 if url:
@@ -50,6 +54,7 @@ class BetMGMSpider(scrapy.Spider):
 
 
     def parse_schedule(self, response):
+        print(f'Parsing {self.name} schedule')
         league = response.meta['league']
 
         for event in response.css('ms-six-pack-event.grid-event'):
@@ -57,7 +62,11 @@ class BetMGMSpider(scrapy.Spider):
                 info_container = event.css('a.grid-info-wrapper')
                 time_container = event.css('ms-event-timer.grid-event-timer')
 
-                event_url = info_container.attrib['href']
+                href = info_container.attrib.get('href', '').strip()
+                if not href:
+                    continue
+
+                event_url = f'{self.domain}{href}'
                 teams = info_container.css('div.participant::text').getall()
                 raw_time = time_container.css('::text').get().strip()
 
@@ -66,14 +75,82 @@ class BetMGMSpider(scrapy.Spider):
                 away = normalize_team_name(teams[0], league)
                 home = normalize_team_name(teams[1], league)
 
-                event_key = create_event_key(league, away, home, start_date)
-                print('Scraped ', event_key)
+                event_key = create_event_key(league, start_date, away, home)
 
-                self.redis.hset('event_urls:betmgm', event_key, self.domain + event_url)
-            except Exception as e:
-                print(e)
+                print(f'Set {event_key} URL: {event_url}')
+                self.redis.hset(f'urls:{self.name}', event_key, event_url)
+            except Exception:
                 continue
 
 
     def parse_odds(self, response):
         event_key = response.meta['event_key']
+        print(f'Parsing {self.name} odds for {event_key}')
+
+        for market_block in response.css('ms-option-panel.option-panel'):
+            block_header = market_block.css('div.option-group-header-title')
+            if 'expanded' not in block_header.attrib.get('class', ''):
+                continue
+
+            market_title = block_header.css('::text').get()
+            option_container = market_block.css('div.option-group-container')
+
+            print(option_container.attrib.get('class', ''))
+            if 'six-pack-container' in option_container.attrib.get('class', ''):
+                yield from self._parse_six_pack_container(option_container, event_key)
+                
+
+    def _parse_six_pack_container(self, container, event_key):
+        teams = container.css('div.attribute-key span::text').getall()
+        if len(teams) != 2:
+            return
+        
+        options = container.css('ms-option')
+        if len(options) != 6:
+            return
+
+        for i, option in enumerate(options):
+            try:
+                team = teams[0] if i < 2 else teams[1]
+                league = event_key.split(':')[0]
+                line_str = option.css('.name::text').get(default='').strip()
+                value_str = option.css('.value::text').get(default="").strip()
+
+                pos = i % 3
+                # Spread
+                if pos == 0:
+                    market = 'spread'
+                    outcome = normalize_team_name(team, league)
+                    line = extract_float(line_str)
+                # Total
+                elif pos == 1:
+                    market = 'total'
+                    outcome = 'over' if 'O' in line_str else 'under'
+                    line = extract_float(line_str)
+                # Moneyline
+                else:
+                    market = 'moneyline'
+                    outcome = normalize_team_name(team, league)
+                    line = None # no line for ML
+
+                value = extract_float(value_str)
+
+                odds = OddsItem(
+                    event_key=event_key,
+                    sportsbook=self.name,
+                    market=market,
+                    outcome=outcome,
+                    line=line,
+                    value=value,
+                    player=None,
+                    prop=None,
+                    collected_at=current_timestamp()
+                )
+
+                odds_hash = generate_odds_hash(dict(odds))
+                print(f'Collected {json.dumps(dict(odds))}')
+                self.redis.hset(f'odds:{self.name}:{event_key}', odds_hash, json.dumps(dict(odds)))
+            except Exception:
+                continue
+
+            yield odds
