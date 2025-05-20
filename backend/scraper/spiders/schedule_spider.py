@@ -34,6 +34,7 @@ class ScheduleSpider(scrapy.Spider):
 			except ValueError:
 				continue # Skip unrecognized date formats
 
+<<<<<<< HEAD
 			for table in schedule.css('div.ResponsiveTable'):
 				rows = table.css('tbody.Table__TBODY tr')
 				for row in rows:
@@ -43,6 +44,16 @@ class ScheduleSpider(scrapy.Spider):
 						event_key = event['event_key']
 						redis_key = f'events:{event_key}'
 						self.redis.set(redis_key, json.dumps(dict(event)), ex=60 * 60 * 24)
+=======
+			rows = table.css('tbody.Table__TBODY tr')
+			for row in rows:
+				event = self._parse_row(row, league, event_date.strftime('%Y-%m-%d'))
+				if event:
+					# Cache event in redis
+					event_key = event['event_key']
+					redis_key = f'events:{event_key}'
+					self.redis.set(redis_key, json.dumps(dict(event)), ex=60 * 60 * 24)
+>>>>>>> 67320bb8d94fe2aebba9fb83c2a98eab7b2ae5e2
 
 						# Trigger async insert/update
 						# update_event_in_db.delay(event)
@@ -62,8 +73,12 @@ class ScheduleSpider(scrapy.Spider):
 		except Exception as e:
 			print('Error getting team names:', e)
 			return None
+<<<<<<< HEAD
 		
 		event_key = create_event_key(league, away, home, date)
+=======
+		event_key = create_event_key(league, date, away, home)
+>>>>>>> 67320bb8d94fe2aebba9fb83c2a98eab7b2ae5e2
 
 		# Determine start time and status
 		raw_time = row.css('td.date__col a::text').get()
