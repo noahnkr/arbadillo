@@ -38,11 +38,20 @@ def create_event_key(league:str, date: str, away:str, home:str,) -> str:
     return f'{league}:{date}:{away}@{home}'
 
 
+def generate_events_hash(event_data: dict) -> str:
+    """Create a hash representing the event's meaningful state."""
+    fields = ['event_key', 'league', 'start_time', 'away_team', 'home_team', 'status']
+    relevant = {k: event_data[k] for k in fields if k in event_data}
+    raw = json.dumps(relevant, sort_keys=True)
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
 def generate_odds_hash(odds_data: dict) -> str:
     """Create a hash to uniquely identify a specific odds line."""
-    relevant = {k: odds_data[k] for k in sorted(odds_data) if k in {'event_key', 'market', 'outcome', 'line', 'value', 'player', 'prop'}}
+    fields = ['event_key', 'market', 'outcome', 'line', 'value', 'player', 'prop']
+    relevant = {k: odds_data[k] for k in fields if k in odds_data}
     raw = json.dumps(relevant, sort_keys=True)
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
 def american_to_decimal(american_odds: int) -> float:
