@@ -28,6 +28,18 @@ BETMGM_URLS = {
     'ncaab': '',
 }
 
+SPIDER_CLASS_NAMES = {
+    'schedule': 'ScheduleSpider',
+    'fanduel': 'FanDuelSpider',
+    'draftkings': 'DraftKingsSpider',
+    'betmgm': 'BetMGMSpider',
+    'bet365': 'Bet365Spider',
+    'espnbet': 'ESPNBetSpider',
+    'caesars': 'CaesarsSpider',
+    'fanatics': 'FanaticsSpider',
+    'betrivers': 'BetRiversSpider',
+}
+
 NFL_ALIASES = {
     'arizona-cardinals': ['ARI', 'Arizona', 'Cardinals', 'Arizona Cardinals'],
     'atlanta-falcons': ['ATL', 'Atlanta', 'Falcons', 'Atlanta Falcons'],
