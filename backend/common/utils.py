@@ -1,7 +1,11 @@
 from .constants import LEAGUE_ALIASES
 from .exceptions import NormalizationError
 from datetime import datetime
+from multiprocessing import Process
+from scrapy.crawler import CrawlerProcess
+from scrapy.utils.project import get_project_settings
 import hashlib
+import importlib
 import json
 import re
 
@@ -56,3 +60,25 @@ def time_diff_minutes(t1: str, t2: str) -> float:
     dt1 = datetime.fromisoformat(t1)
     dt2 = datetime.fromisoformat(t2)
     return abs((dt1 - dt2).total_seconds()) / 60.0
+
+# ---------- Scrapy Helpers ----------
+
+def launch_spider(spider_name, args=None):
+    """Dynamically launches a Scrapy spider in a seperate process."""
+    def _crawl():
+        spider_cls = get_spider_class(spider_name)
+        settings = get_project_settings()
+        process = CrawlerProcess(settings)
+        process.crawl(spider_cls, **(args or {}))
+        process.start()
+
+    p = Process(target=_crawl)
+    p.start()
+    p.join()
+
+
+def get_spider_class(spider_name):
+    """Dynamically imports a spider class based on spider_name."""
+    module_path = f'scraper.spiders.{spider_name}'
+    spider_module = importlib.import_module(module_path)
+    return getattr(spider_module, 'Spider')
