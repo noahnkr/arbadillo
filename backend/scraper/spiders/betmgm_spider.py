@@ -8,7 +8,10 @@ from common.utils import (
     normalize_team_name, create_event_key, decimal_to_american, 
     current_timestamp, generate_odds_hash, extract_float
 )
+from common.logging import configure_logging
 from items import OddsItem
+
+logger = configure_logging(__name__)
 
 class BetMGMSpider(scrapy.Spider):
     name = 'betmgm'
@@ -22,7 +25,7 @@ class BetMGMSpider(scrapy.Spider):
 
 
     def start_requests(self):
-        print(f'Starting {self.name} requsts')
+        logger.info(f'[{self.name}] Starting sportsbook spider | mode={self.mode}')
         if self.mode == 'schedule':
             for league, url in BETMGM_URLS.items():
                 if url:
@@ -33,6 +36,7 @@ class BetMGMSpider(scrapy.Spider):
                 if url:
                     yield scrapy.Request(url, callback=self.parse_odds, meta={'event_key': event_key})
         else:
+            logger.warning(f'[{self.name}] Invalid mode argument | mode={self.mode}')
             raise ValueError('BetMGMSpider requires mode=schedule or mode=odds and appropriate args')
 
 
@@ -56,9 +60,9 @@ class BetMGMSpider(scrapy.Spider):
 
 
     def parse_schedule(self, response):
-        print(f'Parsing {self.name} schedule')
         league = response.meta['league']
 
+        logger.info(f'[{self.name}] Parsing {league} schedule')
         for event in response.css('ms-six-pack-event.grid-event'):
             try:
                 info_container = event.css('a.grid-info-wrapper')
@@ -66,6 +70,7 @@ class BetMGMSpider(scrapy.Spider):
 
                 href = info_container.attrib.get('href', '').strip()
                 if not href:
+                    logger.warning(f'[{self.name}] URL not found for event | league={league}')
                     continue
 
                 event_url = f'{self.domain}{href}'
@@ -85,12 +90,13 @@ class BetMGMSpider(scrapy.Spider):
                     self.redis.hset(f'{self.name}:urls', event_key, event_url)
 
             except Exception:
+                logger.warning(f'[{self.name}] Error occured while parsing event row | league={league}')
                 continue
 
 
     def parse_odds(self, response):
         event_key = response.meta['event_key']
-        print(f'Parsing {self.name} odds for {event_key}')
+        logger.info(f'[{self.name}] Parsing odds for {event_key}')
 
         for market_block in response.css('ms-option-panel.option-panel'):
             block_header = market_block.css('div.option-group-header-title')
