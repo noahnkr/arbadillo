@@ -1,13 +1,11 @@
 from .constants import LEAGUE_ALIASES, SPIDER_CLASS_NAMES
 from .exceptions import NormalizationError
 from datetime import datetime
-from multiprocessing import Process
-from scrapy.crawler import CrawlerProcess
-from scrapy.utils.project import get_project_settings
 import hashlib
-import importlib
 import json
 import re
+import subprocess
+import shlex
 
 # ---------- String Helpers -----------
 
@@ -109,22 +107,9 @@ def time_diff_minutes(t1: str, t2: str) -> float:
 # ---------- Scrapy Helpers ----------
 
 def launch_spider(spider_name, args=None):
-    """Dynamically launches a Scrapy spider in a seperate process."""
-    def _crawl():
-        spider_cls = get_spider_class(spider_name)
-        settings = get_project_settings()
-        process = CrawlerProcess(settings)
-        process.crawl(spider_cls, **(args or {}))
-        process.start()
-
-    p = Process(target=_crawl)
-    p.start()
-    p.join()
-
-
-def get_spider_class(spider_name):
-    """Dynamically imports a spider class based on spider_name."""
-    module_path = f'scraper.spiders.{spider_name}_spider'
-    spider_module = importlib.import_module(module_path)
-    class_name = SPIDER_CLASS_NAMES[spider_name] 
-    return getattr(spider_module, class_name)
+    """Launch a Scrapy spider as a subprocess."""
+    args = args or {}
+    arg_str = ' '.join(f'-a {k}={v}' for k,v in args.items())
+    cmd = f'scrapy crawl {spider_name} {arg_str}'
+    process = subprocess.Popen(shlex.split(cmd), cwd='/app/scraper')
+    process.wait()

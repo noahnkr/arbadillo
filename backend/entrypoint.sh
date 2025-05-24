@@ -17,5 +17,11 @@ END
 
 echo "PostgreSQL is up. Starting Django..."
 
+# Run database migrations
 python api/manage.py migrate
+
+# Run initial schedule collection task
+python api/manage.py shell -c "from workers.tasks import scrape_all_events; scrape_all_events.delay()"
+
+# Start server
 python api/manage.py runserver 0.0.0.0:8000

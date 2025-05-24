@@ -2,8 +2,8 @@ import os
 import json
 import random
 from redis import Redis
-from celery import shared_task
-from common.constants import LEAGUES, SPORTSBOOKS
+from celery import shared_task, chain
+from common.constants import LEAGUES, SPORTSBOOKS, SCHEDULE_URLS
 from common.utils import launch_spider
 
 REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
@@ -12,10 +12,20 @@ REDIS_PORT = os.getenv('REDIS_PORT', 6379)
 redis = Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 @shared_task
+def scrape_all_events():
+    """Scrapes the ESPN schedule followed by each eportsbook's league page."""
+    return chain(
+        scrape_schedule_events.s(),
+        scrape_sportsbook_events.s()
+    )
+
+
+@shared_task
 def scrape_schedule_events():
     """Scrapes ESPN schedule and updates Redis and DB."""
     for league in LEAGUES:
-        launch_spider('schedule', args={'league': league})
+        if league in SCHEDULE_URLS.keys():
+            launch_spider('schedule', args={'league': league})
 
 
 @shared_task

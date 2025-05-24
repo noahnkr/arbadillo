@@ -15,9 +15,6 @@ SPORTS_LEAGUES = {
 SCHEDULE_URLS = {
     'nba': 'https://www.espn.com/nba/schedule',
     'mlb': 'https://www.espn.com/mlb/schedule',
-    'nfl': '',
-    'ncaaf': '',
-    'ncaab': '',
 }
 
 BETMGM_URLS = {
