@@ -27,9 +27,9 @@ def scrape_all_events():
 @shared_task
 def scrape_schedule_events():
     """Scrapes ESPN schedule and updates Redis and DB."""
+    logger.info('Starting ESPN schedule scraping task')
     for league in LEAGUES:
         if league in SCHEDULE_URLS.keys():
-            logger.info(f'Starting ESPN schedule scraping task | league={league} ')
             launch_spider('schedule', args={'league': league})
 
 
