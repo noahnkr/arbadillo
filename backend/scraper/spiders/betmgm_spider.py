@@ -77,8 +77,11 @@ class BetMGMSpider(scrapy.Spider):
 
                 event_key = create_event_key(league, start_date, away, home)
 
-                print(f'Set {event_key} URL: {event_url}')
-                self.redis.hset(f'urls:{self.name}', event_key, event_url)
+                if self.redis.hexists('schedule:events', event_key) and self.redis.sismember('schedule:events:active', event_key):
+                    # Mark event as eligible for odds scraping
+                    self.redis.sadd(f'{self.name}:events:eligible', event_key)
+                    self.redis.hset(f'{self.name}:urls', event_key, event_url)
+
             except Exception:
                 continue
 
@@ -148,8 +151,18 @@ class BetMGMSpider(scrapy.Spider):
                 )
 
                 odds_hash = generate_odds_hash(dict(odds))
-                print(f'Collected {json.dumps(dict(odds))}')
-                self.redis.hset(f'odds:{self.name}:{event_key}', odds_hash, json.dumps(dict(odds)))
+                prev_odds = self.redis.hget(f'{self.name}:odds:{event_key}', odds_hash)
+
+                if prev_odds is None:
+                    # Odds haven't been cached yet, insert row into DB
+                    pass
+                elif odds_hash != generate_odds_hash(json.loads(prev_odds)):
+                    # Odds have changed, update row in DB
+                    pass
+
+                # Update odds in hash
+                self.redis.hset(f'{self.name}:odds:{event_key}', odds_hash, json.dumps(dict(odds)))
+
             except Exception:
                 continue
 
