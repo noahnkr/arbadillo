@@ -14,12 +14,11 @@ class BetMGMSpider(scrapy.Spider):
     name = 'betmgm'
     domain = 'https://sports.il.betmgm.com'
 
-    def __init__(self, mode=None, event_key=None, url=None, *args, **kwargs):
+    def __init__(self, mode=None, event_keys=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.redis = Redis(host=REDIS_HOST, port=REDIS_PORT)
+        self.redis = Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
         self.mode = mode
-        self.event_key = event_key
-        self.url = url
+        self.event_keys = json.loads(event_keys) if event_keys  else []
 
 
     def start_requests(self):
@@ -29,9 +28,12 @@ class BetMGMSpider(scrapy.Spider):
                 if url:
                     yield scrapy.Request(url, callback=self.parse_schedule, meta={'league': league})
         elif self.mode == 'odds':
-            yield scrapy.Request(self.url, callback=self.parse_odds, meta={'event_key': self.event_key})
+            for event_key in self.event_keys:
+                url = self.redis.hget(f'{self.name}:urls', event_key)
+                if url:
+                    yield scrapy.Request(url, callback=self.parse_odds, meta={'event_key': event_key})
         else:
-            raise ValueError('DraftKingsSpider requires mode=schedule or mode=odds and appropriate args')
+            raise ValueError('BetMGMSpider requires mode=schedule or mode=odds and appropriate args')
 
 
     def _parse_start_time(self, time_str: str) -> tuple[str, str]:
