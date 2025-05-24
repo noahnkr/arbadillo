@@ -10,20 +10,19 @@ from items import EventItem
 class ScheduleSpider(scrapy.Spider):
 	name = 'schedule'
 	
-	def __init__(self, *args, **kwargs):
+	def __init__(self, league=None, *args, **kwargs):
 		super().__init__(*args, **kwargs)
+		self.league = league
 		self.redis = Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 
 	def start_requests(self):
-		for league, url in SCHEDULE_URLS.items():
-			if url:
-				yield scrapy.Request(url, callback=self.parse, meta={'league': league})
+		url = SCHEDULE_URLS.get(self.league, '')
+		if url:
+			yield scrapy.Request(url, callback=self.parse)
 
 
 	def parse(self, response):
-		league = response.meta['league']
-
 		for schedule in response.css('div.ScheduleTables'):
 			raw_date = schedule.css('.Table__Title::text').get()
 			if not raw_date:
@@ -35,7 +34,7 @@ class ScheduleSpider(scrapy.Spider):
 				continue # Skip unrecognized date formats
 
 			for row in schedule.css('tbody.Table__TBODY tr'):
-				event = self._parse_row(row, league, event_date.strftime('%Y-%m-%d'))
+				event = self._parse_row(row, event_date.strftime('%Y-%m-%d'))
 				if event:
 					redis_key = 'schedule:events'
 					event_key = event['event_key']
@@ -53,19 +52,19 @@ class ScheduleSpider(scrapy.Spider):
 					yield event
 
 
-	def _parse_row(self, row, league, date):
+	def _parse_row(self, row, date):
 		try:
 			teams = row.css('span.Table__Team > a:last-child')
 			if len(teams) != 2:
 				return None
 
 			# Format team names
-			away = normalize_team_name(teams[0].attrib.get('href', '').split('/')[6], league)
-			home = normalize_team_name(teams[1].attrib.get('href', '').split('/')[6], league)
+			away = normalize_team_name(teams[0].attrib.get('href', '').split('/')[6], self.league)
+			home = normalize_team_name(teams[1].attrib.get('href', '').split('/')[6], self.league)
 		except Exception:
 			return None
 
-		event_key = create_event_key(league, date, away, home)
+		event_key = create_event_key(self.league, date, away, home)
 
 		# Determine start time and status
 		raw_time = row.css('td.date__col a::text').get()
@@ -79,7 +78,7 @@ class ScheduleSpider(scrapy.Spider):
 
 		return EventItem(
             event_key=event_key,
-            league=league,
+            league=self.league,
             start_time=start_time,
             away_team=away,
             home_team=home,
