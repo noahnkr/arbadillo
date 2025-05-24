@@ -1,4 +1,4 @@
-from .constants import LEAGUE_ALIASES
+from .constants import LEAGUE_ALIASES, SPIDER_CLASS_NAMES
 from .exceptions import NormalizationError
 from datetime import datetime
 from multiprocessing import Process
@@ -124,6 +124,7 @@ def launch_spider(spider_name, args=None):
 
 def get_spider_class(spider_name):
     """Dynamically imports a spider class based on spider_name."""
-    module_path = f'scraper.spiders.{spider_name}'
+    module_path = f'scraper.spiders.{spider_name}_spider'
     spider_module = importlib.import_module(module_path)
-    return getattr(spider_module, 'Spider')
+    class_name = SPIDER_CLASS_NAMES[spider_name] 
+    return getattr(spider_module, class_name)
