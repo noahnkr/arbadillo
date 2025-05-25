@@ -41,7 +41,7 @@ class ScheduleSpider(scrapy.Spider):
 				continue # Skip unrecognized date formats
 
 			for row in schedule.css('tbody.Table__TBODY tr'):
-				event = self._parse_row(row, event_date.strftime('%Y-%m-%d'))
+				event = self._parse_row(row, event_date)
 				if event:
 					redis_key = 'schedule:events'
 					event_key = event['event_key']
