@@ -106,7 +106,6 @@ class BetMGMSpider(scrapy.Spider):
             market_title = block_header.css('::text').get()
             option_container = market_block.css('div.option-group-container')
 
-            print(option_container.attrib.get('class', ''))
             if 'six-pack-container' in option_container.attrib.get('class', ''):
                 yield from self._parse_six_pack_container(option_container, event_key)
                 
