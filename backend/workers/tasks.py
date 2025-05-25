@@ -20,8 +20,8 @@ def scrape_all_events():
     logger.info('Starting task to scrape all events')
     return chain(
         scrape_schedule_events.s(),
-        scrape_sportsbook_events.s()
-    )
+        scrape_sportsbook_events.si()
+    ).apply_async()
 
 
 @shared_task
