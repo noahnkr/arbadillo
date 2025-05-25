@@ -1,11 +1,14 @@
-from .constants import LEAGUE_ALIASES, SPIDER_CLASS_NAMES
+from .constants import LEAGUE_ALIASES
 from .exceptions import NormalizationError
+from .logging import configure_logging
 from datetime import datetime
 import hashlib
 import json
 import re
 import subprocess
 import shlex
+
+logger = configure_logging(__name__)
 
 # ---------- String Helpers -----------
 
@@ -109,7 +112,8 @@ def time_diff_minutes(t1: str, t2: str) -> float:
 def launch_spider(spider_name, args=None):
     """Launch a Scrapy spider as a subprocess."""
     args = args or {}
-    arg_str = ' '.join(f'-a {k}={v}' for k,v in args.items())
-    cmd = f'scrapy crawl {spider_name} {arg_str}'
-    process = subprocess.Popen(shlex.split(cmd), cwd='/app/scraper')
+    arg_string = " ".join(f"-a {k}={shlex.quote(str(v))}" for k, v in args.items())
+    cmd = f"scrapy crawl {spider_name} {arg_string}"
+    logger.info(f"[SPAWN] Running: {cmd}")
+    process = subprocess.Popen(shlex.split(cmd), cwd="/app/scraper")
     process.wait()
