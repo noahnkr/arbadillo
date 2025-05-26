@@ -13,16 +13,36 @@ SPORTS_LEAGUES = {
 }
 
 SCHEDULE_URLS = {
+    'nfl': '',
     'nba': 'https://www.espn.com/nba/schedule',
     'mlb': 'https://www.espn.com/mlb/schedule',
+    'mls': '',
+    'nhl': '',
+    'ncaaf': '',
+    'ncaab': '',
+    'ncaaw': '',
 }
 
 BETMGM_URLS = {
+    'nfl': '',
     'nba': 'https://sports.il.betmgm.com/en/sports/basketball-7/betting/usa-9/nba-6004',
     'mlb': 'https://sports.il.betmgm.com/en/sports/baseball-23/betting/usa-9/mlb-75',
-    'nfl': '',
+    'mls': '',
+    'nhl': '',
     'ncaaf': '',
     'ncaab': '',
+    'ncaaw': '',
+}
+
+SPORTSBOOK_URLS = {
+    'fanduel': {}, 
+    'draftkings': {},
+    'betmgm': BETMGM_URLS,
+    'bet365': {}, 
+    'espnbet': {}, 
+    'caesars': {}, 
+    'fanatics': {},
+    'betrivers': {},
 }
 
 NFL_ALIASES = {
