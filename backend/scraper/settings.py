@@ -10,5 +10,7 @@ REDIS_PORT = os.getenv('REDIS_PORT', 6379)
 
 ROBOTSTXT_OBEY = False
 
+LOG_LEVEL = 'CRITICAL'
+
 TWISTED_REACTOR = 'twisted.internet.asyncioreactor.AsyncioSelectorReactor'
 FEED_EXPORT_ENCODING = 'utf-8'
