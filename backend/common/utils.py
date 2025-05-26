@@ -5,8 +5,6 @@ from datetime import datetime
 import hashlib
 import json
 import re
-import subprocess
-import shlex
 
 logger = configure_logging(__name__)
 
@@ -106,14 +104,3 @@ def time_diff_minutes(t1: str, t2: str) -> float:
     dt1 = datetime.fromisoformat(t1)
     dt2 = datetime.fromisoformat(t2)
     return abs((dt1 - dt2).total_seconds()) / 60.0
-
-# ---------- Scrapy Helpers ----------
-
-def launch_spider(spider_name, args=None):
-    """Launch a Scrapy spider as a subprocess."""
-    args = args or {}
-    arg_string = " ".join(f"-a {k}={shlex.quote(str(v))}" for k, v in args.items())
-    cmd = f"scrapy crawl {spider_name} {arg_string}"
-    logger.info(f"[SPAWN] Running: {cmd}")
-    process = subprocess.Popen(shlex.split(cmd), cwd="/app/scraper")
-    process.wait()
