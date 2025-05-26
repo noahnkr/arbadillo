@@ -3,7 +3,7 @@ import sys
 
 def configure_logging(name: str = None, level: int = logging.INFO) -> logging.Logger:
     formatter = logging.Formatter(
-        fmt="[%(asctime)s] %(levelname)s - %(name)s: %(message)s",
+        fmt="[%(asctime)s: %(levelname)s/%(name)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 

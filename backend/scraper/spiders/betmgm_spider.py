@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timedelta
 from redis import Redis
 from settings import REDIS_HOST, REDIS_PORT
-from common.constants import BETMGM_URLS
+from common.constants import SPORTSBOOK_URLS
 from common.utils import (
     normalize_team_name, create_event_key, decimal_to_american, 
     current_timestamp, generate_odds_hash, extract_float
@@ -17,27 +17,29 @@ class BetMGMSpider(scrapy.Spider):
     name = 'betmgm'
     domain = 'https://sports.il.betmgm.com'
 
-    def __init__(self, mode=None, event_keys=None, *args, **kwargs):
+    def __init__(self, mode=None, league=None, event_keys=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.redis = Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
         self.mode = mode
+        self.league = league
         self.event_keys = json.loads(event_keys) if event_keys  else []
 
 
     def start_requests(self):
-        logger.info(f'[{self.name}] Starting sportsbook spider | mode={self.mode}')
         if self.mode == 'schedule':
-            for league, url in BETMGM_URLS.items():
-                if url:
-                    yield scrapy.Request(url, callback=self.parse_schedule, meta={'league': league})
+            url = SPORTSBOOK_URLS[self.name].get(self.league, '')
+            if url:
+                logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
+                yield scrapy.Request(url, callback=self.parse_schedule)
         elif self.mode == 'odds':
             for event_key in self.event_keys:
                 url = self.redis.hget(f'{self.name}:urls', event_key)
                 if url:
+                    logger.info(f'({self.name}) starting odds request | event_key={event_key}, url={url}')
                     yield scrapy.Request(url, callback=self.parse_odds, meta={'event_key': event_key})
         else:
-            logger.warning(f'[{self.name}] Invalid mode argument | mode={self.mode}')
-            raise ValueError('BetMGMSpider requires mode=schedule or mode=odds and appropriate args')
+            logger.warning(f'({self.name}) invalid mode argument `{self.mode}` | name={self.name}')
+            raise ValueError('BetMGM requires mode=schedule or mode=odds and appropriate args')
 
 
     def _parse_start_time(self, time_str: str) -> tuple[str, str]:
@@ -60,9 +62,7 @@ class BetMGMSpider(scrapy.Spider):
 
 
     def parse_schedule(self, response):
-        league = response.meta['league']
-
-        logger.info(f'[{self.name}] Parsing {league} schedule')
+        logger.info(f'({self.name}) parsing schedule | league={self.league}')
         for event in response.css('ms-six-pack-event.grid-event'):
             try:
                 info_container = event.css('a.grid-info-wrapper')
@@ -70,7 +70,7 @@ class BetMGMSpider(scrapy.Spider):
 
                 href = info_container.attrib.get('href', '').strip()
                 if not href:
-                    logger.warning(f'[{self.name}] URL not found for event | league={league}')
+                    logger.warning(f'({self.name}) event url not found in schedule | league={self.league}')
                     continue
 
                 event_url = f'{self.domain}{href}'
@@ -79,24 +79,24 @@ class BetMGMSpider(scrapy.Spider):
 
                 start_date = self._parse_start_time(raw_time)
 
-                away = normalize_team_name(teams[0], league)
-                home = normalize_team_name(teams[1], league)
+                away = normalize_team_name(teams[0], self.league)
+                home = normalize_team_name(teams[1], self.league)
 
-                event_key = create_event_key(league, start_date, away, home)
+                event_key = create_event_key(self.league, start_date, away, home)
 
                 if self.redis.hexists('schedule:events', event_key) and self.redis.sismember('schedule:events:active', event_key):
                     # Mark event as eligible for odds scraping
                     self.redis.sadd(f'{self.name}:events:eligible', event_key)
                     self.redis.hset(f'{self.name}:urls', event_key, event_url)
 
-            except Exception:
-                logger.warning(f'[{self.name}] Error occured while parsing event row | league={league}')
+            except Exception as e:
+                logger.warning(f'({self.name}) {e} occured while scraping event in schedule | league={self.league}')
                 continue
 
 
     def parse_odds(self, response):
         event_key = response.meta['event_key']
-        logger.info(f'[{self.name}] Parsing odds for {event_key}')
+        logger.info(f'({self.name}) parsing odds | event_key={event_key}')
 
         for market_block in response.css('ms-option-panel.option-panel'):
             block_header = market_block.css('div.option-group-header-title')
@@ -170,7 +170,9 @@ class BetMGMSpider(scrapy.Spider):
                 # Update odds in hash
                 self.redis.hset(f'{self.name}:odds:{event_key}', odds_hash, json.dumps(dict(odds)))
 
-            except Exception:
+            except Exception as e:
+                logger.warning(f'({self.name}) {e} occured during game lines odds scraping | event_key={event_key}')
                 continue
-
+            
+            logger.info(f'({self.name}) successfully scraped odds: {json.dumps(dict(odds))} | event_key={event_key}')
             yield odds

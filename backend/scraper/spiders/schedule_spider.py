@@ -20,24 +20,23 @@ class ScheduleSpider(scrapy.Spider):
 
 
 	def start_requests(self):
-		logger.info(f'[{self.name}] Starting schedule spider | league={self.league}')
 		url = SCHEDULE_URLS.get(self.league, '')
 		if url:
+			logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
 			yield scrapy.Request(url, callback=self.parse)
 
 
 	def parse(self, response):
-		logger.info(f'[{self.name}] Parsing response from: {response.url}')
 		for schedule in response.css('div.ScheduleTables'):
 			raw_date = schedule.css('.Table__Title::text').get()
 			if not raw_date:
-				logger.warning(f'[{self.name}] Unable to find date | league={self.league}')
+				logger.warning(f'({self.name}) unable to find date | league={self.league}')
 				continue
 
 			try:
 				event_date = datetime.strptime(raw_date.strip(), '%A, %B %d, %Y').date()
-			except ValueError:
-				logger.warning(f'[{self.name}] Error parsing date: {raw_date} | league={self.league}')
+			except ValueError as e:
+				logger.warning(f'({self.name}) {e} occured while parsing date: {raw_date} | league={self.league}')
 				continue # Skip unrecognized date formats
 
 			for row in schedule.css('tbody.Table__TBODY tr'):
@@ -50,25 +49,25 @@ class ScheduleSpider(scrapy.Spider):
 					if prev_event is None:
 						# Event hasn't been cached yet, insert row into DB
 						# insert_into_db(dict(event)).delay()
-						logger.info(f'[{self.name}] Insert event: {json.dumps(dict(event))} into DB | league={self.league}')
+						#logger.info(f'({self.name}) inserting event into db: {json.dumps(dict(event))} | league={self.league}')
+						pass
 					elif generate_events_hash(dict(event)) != generate_events_hash(json.loads(prev_event)): 
 						# Event info has changed, update row in DB
 						# update_event_in_db(dict(event)).delay()
-						logger.info(f'[{self.name}] Updating event: {json.dumps(dict(event))} in DB | league={self.league}')
+						#logger.info(f'[{self.name}] updating event in db: {json.dumps(dict(event))} | league={self.league}')
+						pass
 
 					# Update event cache
 					self.redis.hset(redis_key, event_key, json.dumps(dict(event)))
-					logger.info(f'[{self.name}] Cached event: {json.dumps(dict(event))} | league={self.league}')
+					logger.info(f'({self.name}) successfully scraped event: {json.dumps(dict(event))} | league={self.league}')
 					yield event
-				else:
-					logger.warning(f'[{self.name}] Event in row is None | league={self.league}')
 
 
 	def _parse_row(self, row, date):
 		try:
 			teams = row.css('span.Table__Team > a:last-child')
 			if len(teams) != 2:
-				logger.warning(f'[{self.name}] Length of teams != 2 | league={self.league}')
+				logger.warning(f'({self.name}) length of teams != 2 | league={self.league}')
 				return None
 
 			# Format team names
@@ -76,8 +75,8 @@ class ScheduleSpider(scrapy.Spider):
 			home_str = teams[1].attrib.get('href', '').split('/')[6]
 			away = normalize_team_name(away_str, self.league)
 			home = normalize_team_name(home_str, self.league)
-		except Exception:
-			logger.warning(f'[{self.name}] Error normalizing team names: ({away_str}, {home_str}) | league={self.league}')
+		except Exception as e:
+			logger.warning(f'({self.name}) {e} occurred while normalizing team names: ({away_str}, {home_str}) | league={self.league}')
 			return None
 
 		event_key = create_event_key(self.league, date, away, home)
@@ -125,9 +124,9 @@ class ScheduleSpider(scrapy.Spider):
 						self.redis.set(redis_key, start_time, ex=60 * 60 * 24)
 
 					status = 'upcoming'
-				except ValueError:
+				except ValueError as e:
 					# Exception occured while parsing start time
-					logger.warning(f'[{self.name}] Error occured while parsing start time | league={self.league}')
+					logger.warning(f'({self.name}) {e} occured while parsing start time | league={self.league}')
 					return None, None
 		else:
 			# Time element doesn't exist on page, thus the event must be completed
