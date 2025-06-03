@@ -86,7 +86,7 @@ class BetMGMSpider(scrapy.Spider):
 
                 if self.redis.hexists('schedule:events', event_key) and self.redis.sismember('schedule:events:active', event_key):
                     # Mark event as eligible for odds scraping
-                    self.redis.sadd(f'{self.name}:events:eligible', event_key)
+                    self.redis.sadd(f'{self.name}:events', event_key)
                     self.redis.hset(f'{self.name}:urls', event_key, event_url)
                     logger.info(f'({self.name}) successfully matched event key to schedule | event_key={event_key}')
                 else:

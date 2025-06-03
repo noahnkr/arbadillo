@@ -1,3 +1,5 @@
+# ---------- Sportsbooks ----------
+
 SPORTSBOOKS = [ 'fanduel', 'draftkings', 'betmgm', 'bet365', 'espnbet', 'caesars', 'fanatics', 'betrivers', ]
 
 SPORTS = [ 'football', 'basketball', 'baseball', 'soccer', 'hockey', ]
@@ -11,6 +13,12 @@ SPORTS_LEAGUES = {
     'soccer': ['mlb'],
     'hockey': ['nhl',],
 }
+
+SPIDER_SCRAPERS = [ 'betmgm', ]
+
+CLIENT_SCRAPERS = [ 'draftkings', ]
+
+# ---------- URLs ----------
 
 SCHEDULE_URLS = {
     'nfl': '',
@@ -44,6 +52,8 @@ SPORTSBOOK_URLS = {
     'fanatics': {},
     'betrivers': {},
 }
+
+# ---------- Aliases ----------
 
 NFL_ALIASES = {
     'arizona-cardinals': ['ARI', 'Arizona', 'Cardinals', 'Arizona Cardinals'],

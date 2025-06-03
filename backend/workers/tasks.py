@@ -4,8 +4,11 @@ import random
 import subprocess
 from redis import Redis
 from celery import shared_task, chain
-from common.constants import LEAGUES, SPORTSBOOKS, SCHEDULE_URLS, SPORTSBOOK_URLS
+from common.constants import ( 
+    LEAGUES, SPORTSBOOKS, SCHEDULE_URLS, SPIDER_SCRAPERS, CLIENT_SCRAPERS, 
+)
 from common.logging import configure_logging
+from scraper.apiclients.base import SportsbookClient
 
 logger = configure_logging(__name__)
 
@@ -15,23 +18,35 @@ REDIS_PORT = os.getenv('REDIS_PORT', 6379)
 redis = Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 @shared_task
-def launch_spider(spider_name, args=None):
+def launch_spider(spider_name, mode=None, league=None, event_keys=None):
     """Launch a Scrapy spider as a subprocess."""
-    args = args or {}
-    # Format event_keys arg into json
-    cmd = ['scrapy', 'crawl', spider_name]
-    for k, v in args.items():
-        if isinstance(v, (list, dict)):
-            v = json.dumps(v)
-        cmd.extend(['-a', f'{k}={v}'])
-    logger.debug(f'Launching Spider with cmd: {" ".join(cmd)}')
+    cmd = ['scrapy', 'crawl', spider_name, '-a', f'mode={mode}']
+
+    if mode == 'schedule':
+        cmd.extend(['-a', f'league={league}'])
+    else:
+        event_keys = event_keys or []
+        cmd.extend(['-a', f'event_keys={json.dumps(event_keys)}'])
+
+    logger.info(f'launching {spider_name} spider | mode={mode}')
+    logger.debug(f'calling cmd {cmd}')
     subprocess.Popen(cmd, cwd='/app/scraper/')
+
+
+@shared_task
+def launch_client(client_name, mode=None, league=None):
+    """Launch an API client scraper process."""
+    client = SportsbookClient(league=league)
+    logger.info(f'launching {client_name} client | mode={mode}, league={league}')
+    if mode == 'schedule':
+        client.parse_schedule()
+    else:
+        client.parse_odds()
 
 
 @shared_task
 def scrape_all_events():
     """Scrapes the ESPN schedule followed by each eportsbook's league page."""
-    logger.info('starting task to scrape all events')
     return chain(
         scrape_schedule_events.s(),
         scrape_sportsbook_events.si()
@@ -41,7 +56,7 @@ def scrape_all_events():
 @shared_task
 def scrape_schedule_events():
     """Scrapes ESPN schedule and updates Redis and DB."""
-    logger.info('starting ESPN Schedule scraping task')
+    logger.info('starting schedule scraping task...')
     for league in LEAGUES:
         if SCHEDULE_URLS.get(league, ''):
             launch_spider('schedule', args={'league': league})
@@ -50,35 +65,48 @@ def scrape_schedule_events():
 @shared_task
 def scrape_sportsbook_events():
     """Scrapes league pages on each sportsbook to discover event URLs."""
-    logger.info('starting sportsbook schedule scraping task')
+    logger.info('starting sportsbook schedule scraping task...')
     for sportsbook in SPORTSBOOKS:
         for league in LEAGUES:
-            if SPORTSBOOK_URLS[sportsbook].get(league, ''):
-                launch_spider(sportsbook, args={'mode': 'schedule', 'league': league})
+            if sportsbook in SPIDER_SCRAPERS:
+                launch_spider(sportsbook, mode='schedule', league=league)
+            elif sportsbook in CLIENT_SCRAPERS:
+                launch_client(sportsbook, mode='schedule', league=league)
+            else:
+                logger.warning(f'unsupported sportsbook scraper: {sportsbook}')
 
 
 @shared_task
-def dispatch_scrape_odds_batches(batch_size=10):
-    """Pulls eligible event_keys from Redis and dispatches them in batches to be scraped."""
-    logger.info(f'starting odds batch dispatching task | batch_size={batch_size}')
+def scrape_sportsbook_odds():
+    logger.info('starting sportsbook odds scraping task...')
     for sportsbook in SPORTSBOOKS:
-        redis_key = f'{sportsbook}:events:eligible'
-        all_keys = list(redis.smembers(redis_key))
-        random.shuffle(all_keys)
+        if sportsbook in SPIDER_SCRAPERS:
+            dispatch_scrape_odds_batches.delay(sportsbook)
+        elif sportsbook in CLIENT_SCRAPERS:
+            for league in LEAGUES:
+                launch_client.delay(sportsbook, mode='odds', league=league)
+        else:
+            logger.warning(f'unsupported sportsbook scraper: {sportsbook}')
 
-        for i in range(0, len(all_keys), batch_size):
-            batch = all_keys[i:i + batch_size]
-            scrape_odds_batch.delay(sportsbook, batch)
+
+
+@shared_task
+def dispatch_scrape_odds_batches(sportsbook, batch_size=10):
+    """Pulls eligible event_keys from Redis and dispatches them in batches to be scraped."""
+    logger.info(f'starting odds batch dispatching task | sportsbook={sportsbook}, batch_size={batch_size}')
+    all_keys = list(redis.smembers(f'{sportsbook}:events'))
+    random.shuffle(all_keys)
+
+    for i in range(0, len(all_keys), batch_size):
+        batch = all_keys[i:i + batch_size]
+        scrape_odds_batch.delay(sportsbook, batch)
 
 
 @shared_task
 def scrape_odds_batch(sportsbook, event_keys):
     """Launch a Scrapy spider process for a batch of event odds."""
     logger.info(f'starting batch odds scraping task | sportsbook={sportsbook}')
-    launch_spider(sportsbook, args={
-        'mode': 'odds',
-        'event_keys': json.dumps(event_keys),
-    })
+    launch_spider(sportsbook, mode='odds', event_keys=event_keys)
 
 
 @shared_task
