@@ -88,9 +88,12 @@ class BetMGMSpider(scrapy.Spider):
                     # Mark event as eligible for odds scraping
                     self.redis.sadd(f'{self.name}:events:eligible', event_key)
                     self.redis.hset(f'{self.name}:urls', event_key, event_url)
+                    logger.info(f'({self.name}) successfully matched event key to schedule | event_key={event_key}')
+                else:
+                    logger.warning(f'({self.name}) unable to match event key to schedule | event_key={event_key}')
 
             except Exception as e:
-                logger.warning(f'({self.name}) {e} occured while scraping event in schedule | league={self.league}')
+                logger.critical(f'({self.name}) {e} occured while scraping event in schedule | league={self.league}')
                 continue
 
 
@@ -174,5 +177,5 @@ class BetMGMSpider(scrapy.Spider):
                 logger.warning(f'({self.name}) {e} occured during game lines odds scraping | event_key={event_key}')
                 continue
             
-            logger.info(f'({self.name}) successfully scraped odds: {json.dumps(dict(odds))} | event_key={event_key}')
+            logger.info(f'({self.name}) successfully scraped {odds['market']} odds | event_key={event_key}')
             yield odds

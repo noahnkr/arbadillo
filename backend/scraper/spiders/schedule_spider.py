@@ -59,7 +59,7 @@ class ScheduleSpider(scrapy.Spider):
 
 					# Update event cache
 					self.redis.hset(redis_key, event_key, json.dumps(dict(event)))
-					logger.info(f'({self.name}) successfully scraped event: {json.dumps(dict(event))} | league={self.league}')
+					logger.info(f'({self.name}) successfully scraped event | event_key={event_key}')
 					yield event
 
 
@@ -76,7 +76,7 @@ class ScheduleSpider(scrapy.Spider):
 			away = normalize_team_name(away_str, self.league)
 			home = normalize_team_name(home_str, self.league)
 		except Exception as e:
-			logger.warning(f'({self.name}) {e} occurred while normalizing team names: ({away_str}, {home_str}) | league={self.league}')
+			logger.critical(f'({self.name}) {e} occurred while normalizing team names: ({away_str}, {home_str}) | league={self.league}')
 			return None
 
 		event_key = create_event_key(self.league, date, away, home)
