@@ -27,7 +27,7 @@ class BetMGMSpider(scrapy.Spider):
 
     def start_requests(self):
         if self.mode == 'schedule':
-            url = SPORTSBOOK_URLS[self.name].get(self.league, '')
+            url = SPORTSBOOK_URLS[self.name][self.league]
             if url:
                 logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
                 yield scrapy.Request(url, callback=self.parse_schedule)
@@ -177,5 +177,6 @@ class BetMGMSpider(scrapy.Spider):
                 logger.warning(f'({self.name}) {e} occured during game lines odds scraping | event_key={event_key}')
                 continue
             
-            logger.info(f'({self.name}) successfully scraped {odds['market']} odds | event_key={event_key}')
+            market = odds['market']
+            logger.info(f'({self.name}) successfully scraped {market} odds | event_key={event_key}')
             yield odds
