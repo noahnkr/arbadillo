@@ -8,7 +8,7 @@ from common.constants import (
     LEAGUES, SPORTSBOOKS, SCHEDULE_URLS, SPIDER_SCRAPERS, CLIENT_SCRAPERS, 
 )
 from common.logging import configure_logging
-from scraper.apiclients.base import SportsbookClient
+from common.utils import get_client
 
 logger = configure_logging(__name__)
 
@@ -36,7 +36,7 @@ def launch_spider(spider_name, mode=None, league=None, event_keys=None):
 @shared_task
 def launch_client(client_name, mode=None, league=None):
     """Launch an API client scraper process."""
-    client = SportsbookClient(league=league)
+    client = get_client(client_name, league)
     logger.info(f'launching {client_name} client | mode={mode}, league={league}')
     if mode == 'schedule':
         client.parse_schedule()
@@ -59,7 +59,7 @@ def scrape_schedule_events():
     logger.info('starting schedule scraping task...')
     for league in LEAGUES:
         if SCHEDULE_URLS.get(league, ''):
-            launch_spider('schedule', args={'league': league})
+            launch_spider('schedule', mode='schedule', league=league)
 
 
 @shared_task

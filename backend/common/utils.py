@@ -1,7 +1,8 @@
-from .constants import LEAGUE_ALIASES
+from .constants import LEAGUE_ALIASES, CLIENT_MAP
 from .exceptions import NormalizationError
 from .logging import configure_logging
 from datetime import datetime
+import importlib
 import hashlib
 import json
 import re
@@ -104,3 +105,17 @@ def time_diff_minutes(t1: str, t2: str) -> float:
     dt1 = datetime.fromisoformat(t1)
     dt2 = datetime.fromisoformat(t2)
     return abs((dt1 - dt2).total_seconds()) / 60.0
+
+# ---------- Import Helpers ----------
+
+def get_class_from_path(path: str):
+    module_path, class_name = path.rsplit('.', 1)
+    module = importlib.import_module(module_path)
+    return getattr(module, class_name)
+
+def get_client(sportsbook: str, league: str):
+    class_path = CLIENT_MAP.get(sportsbook.lower())
+    if not class_path:
+        raise ValueError(f'No client found for sportsbook: {sportsbook}')
+    ClientClass = get_class_from_path(class_path)
+    return ClientClass(league)

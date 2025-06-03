@@ -18,6 +18,10 @@ SPIDER_SCRAPERS = [ 'betmgm', ]
 
 CLIENT_SCRAPERS = [ 'draftkings', ]
 
+CLIENT_MAP = {
+    'draftkings': 'scraper.apiclients.draftkings.DraftKingsClient',
+}
+
 # ---------- URLs ----------
 
 SCHEDULE_URLS = {
@@ -42,9 +46,20 @@ BETMGM_URLS = {
     'ncaaw': '',
 }
 
+DRAFTKINGS_URLS = {
+    'nfl': '',
+    'nba': 'https://sportsbook-nash.draftkings.com/api/sportscontent/dkusil/v1/leagues/42648',
+    'mlb': 'https://sportsbook-nash.draftkings.com/api/sportscontent/dkusil/v1/leagues/84240',
+    'mls': '',
+    'nhl': '',
+    'ncaaf': '',
+    'ncaab': '',
+    'ncaaw': '',
+}
+
 SPORTSBOOK_URLS = {
     'fanduel': {}, 
-    'draftkings': {},
+    'draftkings': DRAFTKINGS_URLS,
     'betmgm': BETMGM_URLS,
     'bet365': {}, 
     'espnbet': {}, 
