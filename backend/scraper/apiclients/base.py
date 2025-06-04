@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from redis import Redis
+import requests
 import os
 
 REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
@@ -9,8 +10,13 @@ class SportsbookClient(ABC):
 
     def __init__(self, league=None):
         self.league = league
-        self.redis = Redis(host=REDIS_HOST, port=REDIS_PORT)
-    
+        self.redis = Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+
+
+    @abstractmethod
+    def fetch_data(self, url):
+        pass
+
 
     @abstractmethod
     def parse_schedule(self):

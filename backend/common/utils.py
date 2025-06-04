@@ -1,4 +1,4 @@
-from .constants import LEAGUE_ALIASES, CLIENT_MAP
+from .constants import LEAGUE_ALIASES, MARKET_ALIASES, CLIENT_MAP
 from .exceptions import NormalizationError
 from .logging import configure_logging
 from datetime import datetime
@@ -11,7 +11,7 @@ logger = configure_logging(__name__)
 
 # ---------- String Helpers -----------
 
-def clean_team_name(name: str) -> str:
+def clean_str(name: str) -> str:
     """Trim and normalize team names."""
     name = re.sub(r"[-_./\\]", " ", name)
     name = re.sub(r"\s+", " ", name)
@@ -22,9 +22,17 @@ def normalize_team_name(name: str, league: str) -> str:
     """Normalizes a team name to a slugified standard."""
     team_aliases = LEAGUE_ALIASES[league]
     for standard, aliases in team_aliases.items():
-        if clean_team_name(name) in map(str.lower, aliases):
+        if clean_str(name) in map(str.lower, aliases):
             return standard
     raise NormalizationError(f'Unkown team name `{name}` for league `{league}`')
+
+
+def normalize_market_name(market: str) -> str:
+    """Normalizes a sportsbook's market name to a standard."""
+    for standard, aliases in MARKET_ALIASES.items():
+        if clean_str(market) in map(str.lower, aliases):
+            return standard
+    raise NormalizationError(f'Unkown market name `{market}`')
 
 
 def extract_float(raw: str) -> float | None:
