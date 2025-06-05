@@ -16,14 +16,6 @@ enable_utc = True
 beat_schedule = {
     'scrape-events': {
         'task': 'workers.tasks.scrape_all_events',
-        'schedule': crontab(minute='*/5'),
-    },
-    'scrape-odds': {
-        'task': 'workers.tasks.scrape_sportsbook_odds',
         'schedule': 30.0,
-    },
-    'cleanup-eligible-events': {
-        'task': 'workers.tasks.cleanup_eligible_events',
-        'schedule': crontab(minute='*/10'),
     },
 }
