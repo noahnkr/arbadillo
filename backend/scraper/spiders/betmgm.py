@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timedelta
 from redis import Redis
 from settings import REDIS_HOST, REDIS_PORT
-from common.constants import SPORTSBOOK_URLS
+from common.constants import BETMGM_URLS
 from common.utils import (
     normalize_team_name, create_event_key, decimal_to_american, 
     current_timestamp, generate_odds_hash, extract_float
@@ -27,7 +27,7 @@ class BetMGMSpider(scrapy.Spider):
 
     def start_requests(self):
         if self.mode == 'schedule':
-            url = SPORTSBOOK_URLS[self.name][self.league]
+            url = BETMGM_URLS[self.league]
             if url:
                 logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
                 yield scrapy.Request(url, callback=self.parse_schedule)

@@ -38,7 +38,6 @@ class ESPNClient(SportsbookClient):
                             else:
                                 away = t['name']
 
-
                         away = normalize_team_name(away, self.league)
                         home = normalize_team_name(home, self.league)
 
