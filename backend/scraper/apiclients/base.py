@@ -13,9 +13,15 @@ class SportsbookClient(ABC):
         self.redis = Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 
-    @abstractmethod
     def fetch_data(self, url):
-        pass
+        headers = {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+		}
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        return data
 
 
     @abstractmethod
