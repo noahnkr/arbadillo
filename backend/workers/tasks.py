@@ -5,10 +5,10 @@ import subprocess
 from redis import Redis
 from celery import shared_task, chain
 from common.constants import ( 
-    LEAGUES, SPORTSBOOKS, SCHEDULE_URLS, SPIDER_SCRAPERS, CLIENT_SCRAPERS, 
+    LEAGUES, SPORTSBOOKS, SPIDER_SCRAPERS, CLIENT_SCRAPERS, 
 )
 from common.logging import configure_logging
-from scraper.apiclients.base import SportsbookClient
+from common.utils import get_client
 
 logger = configure_logging(__name__)
 
@@ -36,7 +36,7 @@ def launch_spider(spider_name, mode=None, league=None, event_keys=None):
 @shared_task
 def launch_client(client_name, mode=None, league=None):
     """Launch an API client scraper process."""
-    client = SportsbookClient(league=league)
+    client = get_client(client_name, league)
     logger.info(f'launching {client_name} client | mode={mode}, league={league}')
     if mode == 'schedule':
         client.parse_schedule()
@@ -49,7 +49,8 @@ def scrape_all_events():
     """Scrapes the ESPN schedule followed by each eportsbook's league page."""
     return chain(
         scrape_schedule_events.s(),
-        scrape_sportsbook_events.si()
+        scrape_sportsbook_events.si(),
+        scrape_sportsbook_odds.si()
     ).apply_async()
 
 
@@ -58,8 +59,7 @@ def scrape_schedule_events():
     """Scrapes ESPN schedule and updates Redis and DB."""
     logger.info('starting schedule scraping task...')
     for league in LEAGUES:
-        if SCHEDULE_URLS.get(league, ''):
-            launch_spider('schedule', args={'league': league})
+        launch_client('espn', mode='schedule', league=league)
 
 
 @shared_task
@@ -72,8 +72,6 @@ def scrape_sportsbook_events():
                 launch_spider(sportsbook, mode='schedule', league=league)
             elif sportsbook in CLIENT_SCRAPERS:
                 launch_client(sportsbook, mode='schedule', league=league)
-            else:
-                logger.warning(f'unsupported sportsbook scraper: {sportsbook}')
 
 
 @shared_task
@@ -85,9 +83,6 @@ def scrape_sportsbook_odds():
         elif sportsbook in CLIENT_SCRAPERS:
             for league in LEAGUES:
                 launch_client.delay(sportsbook, mode='odds', league=league)
-        else:
-            logger.warning(f'unsupported sportsbook scraper: {sportsbook}')
-
 
 
 @shared_task

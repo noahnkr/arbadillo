@@ -17,4 +17,6 @@ def configure_logging(name: str = None, level: int = logging.INFO) -> logging.Lo
     if not logger.handlers:
         logger.addHandler(handler)
 
+    logger.propagate = False
+
     return logger
