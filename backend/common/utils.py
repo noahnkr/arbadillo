@@ -117,11 +117,29 @@ def get_sport_from_league(league: str) -> str:
             return sport
     raise NormalizationError(f'Unknown league `{league}`')
 
+
+def format_odds(odds: dict) -> str:
+    """Formats odds data into a readable string."""
+    market = odds['market']
+    outcome = odds['outcome']
+    line = odds['line']
+    value = odds['value']
+    player = odds['player']
+    prop = odds['prop']
+    if market == 'moneyline':
+        odds_str = f'{outcome}: {value}'
+    elif  market == 'spread' or market == 'total':
+        odds_str = f'{outcome} {line}: {value}'
+    else:
+        odds_str = f'({player}) {outcome} {line} {prop}: {value}'
+    return odds_str
+
 # ---------- Time Helpers -----------
 
 def current_timestamp() -> str:
     """Return current UTC timestamp as ISO string."""
-    return datetime.now().isoformat()
+    central = tz.gettz('America/Chicago')
+    return datetime.now(tz=central).isoformat()
 
 
 def utc_to_cst(time: str) -> str:
