@@ -16,7 +16,7 @@ SPORTS_LEAGUES = {
 
 SPIDER_SCRAPERS = []
 
-CLIENT_SCRAPERS = [ 'draftkings', ]
+CLIENT_SCRAPERS = [ 'espn', 'draftkings', ]
 
 CLIENT_MAP = {
     'espn': 'scraper.apiclients.espn.ESPNClient',
@@ -27,8 +27,19 @@ CLIENT_MAP = {
 
 ESPN_URLS = {
     'nfl': '',
-    'nba': 'https://www.espn.com/nba/schedule/_/date?_xhr=pageContent',
-    'mlb': 'https://www.espn.com/mlb/schedule/_/date?_xhr=pageContent',
+    'nba': 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard',
+    'mlb': 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard',
+    'mls': '',
+    'nhl': '',
+    'ncaaf': '',
+    'ncaab': '',
+    'ncaaw': '',
+}
+
+ESPNBET_URLS = {
+    'nfl': '',
+    'nba': 'https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/events',
+    'mlb': 'https://sports.core.api.espn.com/v2/sports/baseball/leagues/mlb/events',
     'mls': '',
     'nhl': '',
     'ncaaf': '',
