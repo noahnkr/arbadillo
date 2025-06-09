@@ -57,7 +57,7 @@ def scrape_all_events():
 @shared_task
 def scrape_schedule_events():
     """Scrapes ESPN schedule and updates Redis and DB."""
-    logger.info('starting schedule scraping task...')
+    logger.info('starting ESPN schedule scraping task...')
     for league in LEAGUES:
         launch_client('espn', mode='schedule', league=league)
 
@@ -66,7 +66,7 @@ def scrape_schedule_events():
 def scrape_sportsbook_events():
     """Scrapes league pages on each sportsbook to discover event URLs."""
     logger.info('starting sportsbook schedule scraping task...')
-    for sportsbook in SPORTSBOOKS:
+    for sportsbook in SPORTSBOOKS[1:]:
         for league in LEAGUES:
             if sportsbook in SPIDER_SCRAPERS:
                 launch_spider(sportsbook, mode='schedule', league=league)
