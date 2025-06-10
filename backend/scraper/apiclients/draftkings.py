@@ -7,14 +7,13 @@ from common.utils import (
 	format_odds,
 )
 from common.logging import configure_logging
-from dateutil import tz
 
 logger = configure_logging(__name__)
 
 class DraftKingsClient(SportsbookClient):
 	name = 'draftkings'
 
-	def __init__(self, league=None):
+	def __init__(self, league):
 		super().__init__(league)
 
 

@@ -15,7 +15,7 @@ logger = configure_logging(__name__)
 class ESPNClient(SportsbookClient):
     name = 'espn'
 
-    def __init__(self, league=None):
+    def __init__(self, league):
         super().__init__(league)
 
 
@@ -91,7 +91,14 @@ class ESPNClient(SportsbookClient):
                     event_data = self.fetch_data(event_url)
 
                     event = json.loads(self.redis.hget(f'{self.name}:events', event_key))
-                    selections = event_data['items'][0] if event['status'] == 'upcoming' else event_data['items'][1]
+                    providers = event_data['items']
+                    
+                    if not providers:
+                        logger.info(f'({self.name}) no odds avaialable | league={self.league}, event_key={event_key}')
+                        continue
+
+                    # Live odds stored in seperate dict
+                    selections = providers[0] if event['status'] == 'upcoming' else providers[1]
 
                     lines = []
                     markets = []
@@ -99,7 +106,7 @@ class ESPNClient(SportsbookClient):
                     lines = []
                     values = []
 
-                    # Spreads
+                    # Spread
                     markets.extend(['spread', 'spread'])
                     outcomes.extend([event['away'], event['home']])
                     lines.extend([
