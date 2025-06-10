@@ -70,6 +70,17 @@ DRAFTKINGS_URLS = {
     'ncaaw': '',
 }
 
+FANDUEL_URLS = {
+    'nfl': '',
+    'nba': 'https://sbapi.il.sportsbook.fanduel.com/api/content-managed-page?page=CUSTOM&customPageId=nba',
+    'mlb': 'https://sbapi.il.sportsbook.fanduel.com/api/content-managed-page?page=CUSTOM&customPageId=mlb',
+    'mls': '',
+    'nhl': '',
+    'ncaaf': '',
+    'ncaab': '',
+    'ncaaw': '',
+}
+
 # ---------- Aliases ----------
 
 NFL_ALIASES = {
