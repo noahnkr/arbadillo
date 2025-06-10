@@ -16,11 +16,12 @@ SPORTS_LEAGUES = {
 
 SPIDER_SCRAPERS = []
 
-CLIENT_SCRAPERS = [ 'espn', 'draftkings', ]
+CLIENT_SCRAPERS = [ 'espn', 'draftkings', 'fanduel', ]
 
 CLIENT_MAP = {
     'espn': 'scraper.apiclients.espn.ESPNClient',
     'draftkings': 'scraper.apiclients.draftkings.DraftKingsClient',
+    'fanduel': 'scraper.apiclients.fanduel.FanDuelClient',
 }
 
 # ---------- URLs ----------
