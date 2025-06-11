@@ -35,26 +35,26 @@ class ESPNClient(SportsbookClient):
                 logger.exception(f'({self.name}) {e} occured while yielding schedule request | league={self.league}, url={url}')
 
             events = today_data['events'] + (tomorrow_data['events'])
-            for e in events:
+            for event in events:
                 try:
-                    event_id = e['id']
+                    event_id = event['id']
 
-                    start_time = utc_to_cst(e['date'])
+                    start_time = utc_to_cst(event['date'])
                     start_date = start_time.split('T')[0]
 
-                    teams = e['shortName'].split('@')
+                    teams = event['shortName'].split('@')
                     away = normalize_team_name(teams[0], self.league)
                     home = normalize_team_name(teams[1], self.league)
 
                     event_key = create_event_key(self.league, start_date, away, home)
 
-                    status = normalize_status_name(e['status']['type']['state'])
+                    status = normalize_status_name(event['status']['type']['state'])
                     if status in ['upcoming', 'active']:
                         self.redis.sadd(f'{self.name}:events:{self.league}:active', event_id)
                     else:
                         self.redis.srem(f'{self.name}:events:{self.league}:active', event_id)
 
-                    event = {
+                    event_data = {
                         'event_key': event_key,
                         'league': self.league,
                         'start_time': start_time,
@@ -64,12 +64,12 @@ class ESPNClient(SportsbookClient):
                         'collected_at': current_timestamp()
                     }
 
-                    event_hash = generate_event_hash(event)
+                    event_hash = generate_event_hash(event_data)
                     prev_hash = self.redis.hget(f'{self.name}:hashes', event_key)
 
                     if prev_hash != event_hash:
                         # Event data has changed, cache event and update DB
-                        self.redis.hset(f'{self.name}:events', event_key, json.dumps(event))
+                        self.redis.hset(f'{self.name}:events', event_key, json.dumps(event_data))
                         self.redis.hset(f'{self.name}:keys', event_id, event_key)
                         self.redis.hset(f'{self.name}:hashes', event_id, event_hash)
                         insert_or_update_event.delay(event)
@@ -82,16 +82,19 @@ class ESPNClient(SportsbookClient):
 
 
     def parse_odds(self):
-        logger.info(f'({self.name}) starting odds request | league={self.league}')
         url = ESPNBET_URLS[self.league]
         if url:
+            logger.info(f'({self.name}) starting odds request | league={self.league}, url={url}')
             event_ids = self.redis.smembers(f'{self.name}:events:{self.league}:active')
             for e_id in event_ids:
                 try:
                     event_url = url + f'/{e_id}/competitions/{e_id}/odds'
                     event_key = self.redis.hget(f'{self.name}:keys', e_id)
                     event_data = self.fetch_data(event_url)
+                except Exception as e:
+                    logger.exception(f'({self.name}) {e} occured while yielding schedule request | league={self.league}, url={event_url}')
 
+                try:
                     event = json.loads(self.redis.hget(f'{self.name}:events', event_key))
                     providers = event_data['items']
                     
@@ -102,11 +105,7 @@ class ESPNClient(SportsbookClient):
                     # Live odds stored in seperate dict
                     selections = providers[0] if event['status'] == 'upcoming' else providers[1]
 
-                    lines = []
-                    markets = []
-                    outcomes = []
-                    lines = []
-                    values = []
+                    markets, outcomes, lines, values = [], [], [], []
 
                     # Spread
                     markets.extend(['spread', 'spread'])
@@ -139,7 +138,7 @@ class ESPNClient(SportsbookClient):
                         selections['current']['under']['value']
                     ])
 
-                    for i in range(6):
+                    for i in range(len(markets)):
                         odds = {
                             'event_key': event_key,
                             'sportsbook': self.name,
@@ -150,7 +149,6 @@ class ESPNClient(SportsbookClient):
                             'player': None,
                             'prop': None,
                             'collected_at': current_timestamp()
-
                         }
 
                         market_key = create_market_key(markets[i], lines[i])
@@ -167,6 +165,7 @@ class ESPNClient(SportsbookClient):
 
                 except Exception as e:
                     logger.exception(f'({self.name}) {e} occured while scraping odds | league={self.league}')
+
         else:
             logger.warning(f'({self.name}) odds url not found | league={self.league}')
 
