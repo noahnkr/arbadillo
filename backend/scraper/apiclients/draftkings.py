@@ -1,5 +1,6 @@
 import json
 from .base import SportsbookClient
+from workers.tasks import insert_or_update_odds
 from common.constants import DRAFTKINGS_URLS
 from common.utils import (
     normalize_team_name, normalize_market_name, create_event_key, 
@@ -127,6 +128,7 @@ class DraftKingsClient(SportsbookClient):
 						# Odds data have changed, cache odds and update DB
 						self.redis.hset(f'{self.name}:odds:{event_key}:{market_key}', outcome, json.dumps(odds))
 						self.redis.hset(f'{self.name}:hashes:{event_key}:{market_key}', outcome, odds_hash)
+						insert_or_update_odds.delay(odds)
 						logger.info(f'({self.name}) cached {format_odds(odds)} | league={self.league}, event_key={event_key}')
 
 				except Exception as e:

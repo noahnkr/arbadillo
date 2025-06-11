@@ -4,6 +4,7 @@ import random
 import subprocess
 from redis import Redis
 from celery import shared_task, chain
+from api.core.utils import insert_or_update_event, insert_or_update_odds
 from common.constants import ( 
     LEAGUES, SPORTSBOOKS, SPIDER_SCRAPERS, CLIENT_SCRAPERS, 
 )
@@ -102,6 +103,18 @@ def scrape_odds_batch(sportsbook, event_keys):
     """Launch a Scrapy spider process for a batch of event odds."""
     logger.info(f'starting batch odds scraping task | sportsbook={sportsbook}')
     launch_spider(sportsbook, mode='odds', event_keys=event_keys)
+
+
+@shared_task
+def insert_or_update_event(event):
+    event = insert_or_update_event(event)
+    return event
+
+
+@shared_task
+def insert_or_update_odds(odds):
+    odds = insert_or_update_odds(odds)
+    return odds
 
 
 @shared_task

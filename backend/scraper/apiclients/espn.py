@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timedelta
 from dateutil import tz
 from .base import SportsbookClient
+from workers.tasks import insert_or_update_event, insert_or_update_odds
 from common.constants import ESPN_URLS, ESPNBET_URLS
 from common.utils import (
     normalize_team_name, normalize_status_name, create_event_key, create_market_key, 
@@ -71,7 +72,8 @@ class ESPNClient(SportsbookClient):
                         self.redis.hset(f'{self.name}:events', event_key, json.dumps(event))
                         self.redis.hset(f'{self.name}:keys', event_id, event_key)
                         self.redis.hset(f'{self.name}:hashes', event_id, event_hash)
-                        logger.info(f'({self.name}) cached event | league={self.league}, event_key={event_key}')
+                        insert_or_update_event.delay(event)
+                        logger.info(f'({self.name}) scraped event | league={self.league}, event_key={event_key}')
 
                 except Exception as e:
                     logger.exception(f'({self.name}) {e} occured while parsing event | league={self.league}')
@@ -160,6 +162,7 @@ class ESPNClient(SportsbookClient):
                             # Odds data have changed, cache odds and update DB
                             self.redis.hset(f'{self.name}:odds:{event_key}:{market_key}', outcomes[i], json.dumps(odds))
                             self.redis.hset(f'{self.name}:hashes:{event_key}:{market_key}', outcomes[i], odds_hash)
+                            insert_or_update_odds(odds)
                             logger.info(f'({self.name}) cached {format_odds(odds)} | league={self.league}, event_key={event_key}')
 
                 except Exception as e:
