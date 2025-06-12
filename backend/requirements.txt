@@ -3,5 +3,4 @@ djangorestframework
 psycopg2-binary
 celery
 redis
-scrapy
 playwright
