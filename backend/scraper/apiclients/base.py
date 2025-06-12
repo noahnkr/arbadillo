@@ -1,16 +1,18 @@
 from abc import ABC, abstractmethod
+from django.conf import settings
 from redis import Redis
 import requests
-import os
-
-REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
-REDIS_PORT = os.getenv('REDIS_PORT', 6379)
 
 class SportsbookClient(ABC):
 
     def __init__(self, league):
         self.league = league
-        self.redis = Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+        self.redis = Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=settings.REDIS_DB,
+            decode_responses=True
+        )
 
 
     def fetch_data(self, url, headers=None, params=None, session=None):

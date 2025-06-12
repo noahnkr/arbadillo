@@ -82,7 +82,7 @@ def decimal_to_american(decimal_odds: float) -> int:
     else:
         american_odds = -100 / (decimal_odds - 1)
 
-    return int(round(american_odds / 5.0) * 5)
+    return int(american_odds)
 
 
 def normalize_team_name(name: str, league: str) -> str:
@@ -123,15 +123,15 @@ def format_odds(odds: dict) -> str:
     market = odds['market']
     outcome = odds['outcome']
     line = odds['line']
-    value = odds['value']
+    value = decimal_to_american(odds['value'])
     player = odds['player']
     prop = odds['prop']
     if market == 'moneyline':
-        odds_str = f'{outcome}: {value}'
+        odds_str = f'{outcome} ({value})'
     elif  market == 'spread' or market == 'total':
-        odds_str = f'{outcome} {line}: {value}'
+        odds_str = f'{outcome} {line} ({value})'
     else:
-        odds_str = f'({player}) {outcome} {line} {prop}: {value}'
+        odds_str = f'({player} {outcome} {line} {prop} ({value})'
     return odds_str
 
 # ---------- Time Helpers -----------

@@ -18,7 +18,7 @@ END
 echo "PostgreSQL is up. Starting Django..."
 
 # Run database migrations
-python api/manage.py migrate
+python manage.py migrate
 
 # Start server
-python api/manage.py runserver 0.0.0.0:8000
+python manage.py runserver 0.0.0.0:8000

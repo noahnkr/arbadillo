@@ -14,8 +14,6 @@ SPORTS_LEAGUES = {
     'hockey': ['nhl',],
 }
 
-SPIDER_SCRAPERS = []
-
 CLIENT_SCRAPERS = [ 'espn', 'draftkings', 'fanduel', ]
 
 CLIENT_MAP = {
@@ -63,6 +61,17 @@ DRAFTKINGS_URLS = {
     'nfl': '',
     'nba': 'https://sportsbook-nash.draftkings.com/api/sportscontent/dkusil/v1/leagues/42648',
     'mlb': 'https://sportsbook-nash.draftkings.com/api/sportscontent/dkusil/v1/leagues/84240',
+    'mls': '',
+    'nhl': '',
+    'ncaaf': '',
+    'ncaab': '',
+    'ncaaw': '',
+}
+
+FANDUEL_URLS = {
+    'nfl': '',
+    'nba': 'https://sbapi.il.sportsbook.fanduel.com/api/content-managed-page?page=CUSTOM&customPageId=nba',
+    'mlb': 'https://sbapi.il.sportsbook.fanduel.com/api/content-managed-page?page=CUSTOM&customPageId=mlb',
     'mls': '',
     'nhl': '',
     'ncaaf': '',
