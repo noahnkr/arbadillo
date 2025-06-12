@@ -5,6 +5,7 @@ __pycache__/
 
 # Database
 data/
+migrations/
 *.sqlite3
 *.json
 
