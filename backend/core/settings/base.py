@@ -10,6 +10,7 @@ DEBUG = False
 ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
+    'core',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -49,7 +50,6 @@ LOGGING = {
     },
 }
 
-ROOT_URLCONF = 'api.core.urls'
 
 TEMPLATES = [
     {
@@ -66,8 +66,9 @@ TEMPLATES = [
     },
 ]
 
-ASGI_APPLICATION = 'api.core.asgi.application'
-WSGI_APPLICATION = 'api.core.wsgi.application'
+ROOT_URLCONF = 'core.urls'
+ASGI_APPLICATION = 'core.asgi.application'
+WSGI_APPLICATION = 'core.wsgi.application'
 
 DATABASES = {
     'default': {
@@ -98,3 +99,16 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_PORT = os.getenv('REDIS_PORT', 6379)
+REDIS_DB = os.getenv('REDIS_DB', 0)
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', None)
+
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', f'redis://{REDIS_HOST}:{REDIS_PORT}/1')
+
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'

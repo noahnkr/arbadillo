@@ -1,22 +1,20 @@
-from .models import Event, Odds
+from celery import shared_task
+from core.models import Event, Odds
 
+@shared_task
 def insert_or_update_event(event_data):
-    """
-    Insert a new event or update an existing one in the database.
-    """
-    event, created = Event.objects.update_or_create(
+    """Insert a new event or update an existing one in the database."""
+    Event.objects.update_or_create(
         event_key=event_data['event_key'],
         defaults=event_data
     )
-    return event
 
 
+@shared_task
 def insert_or_update_odds(odds_data):
-    """
-    Insert a new odds entry or update an existing one in the database.
-    """
+    """Insert a new odds entry or update an existing one in the database."""
     event = Event.objects.get(event_key=odds_data['event_key'])
-    odds, created = Odds.objects.update_or_create(
+    Odds.objects.update_or_create(
         event=event,
         sportsbook=odds_data['sportsbook'],
         market=odds_data['market'],
@@ -28,4 +26,3 @@ def insert_or_update_odds(odds_data):
             'prop': odds_data.get('prop')
         }
     )
-    return odds
