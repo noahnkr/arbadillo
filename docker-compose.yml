@@ -2,8 +2,8 @@ services:
     django:
         build:
             context: ./backend
-        container_name: api
-        command: sh entrypoint.sh
+        command: sh scripts/init-db.sh
+        container_name: django
         volumes:
             - ./backend:/app
         ports:
@@ -14,11 +14,11 @@ services:
             - db
             - redis
 
-    celery:
+    celery-worker:
         build:
             context: ./backend
-        container_name: celery_worker
-        command: celery -A workers worker --loglevel=info --concurrency=4
+        container_name: celery-worker
+        command: celery -A celery_app worker --loglevel=info
         volumes:
             - ./backend:/app
         env_file:
@@ -30,8 +30,8 @@ services:
     celery-beat:
         build:
             context: ./backend
-        container_name: celery_beat
-        command: celery -A workers beat --loglevel=info
+        container_name: celery-beat
+        command: celery -A celery_app beat --loglevel=info
         volumes:
             - ./backend:/app
         env_file:
