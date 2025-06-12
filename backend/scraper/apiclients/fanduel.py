@@ -1,7 +1,7 @@
 import json
 import re
-from .base import SportsbookClient
-from workers.tasks import insert_or_update_odds
+from scraper.apiclients.base import SportsbookClient
+from core.tasks import insert_or_update_odds
 from common.constants import FANDUEL_URLS
 from common.utils import (
     normalize_team_name, normalize_market_name, create_event_key, 
@@ -137,7 +137,7 @@ class FanDuelClient(SportsbookClient):
                         continue
 
                     for i in range(len(markets)):
-                        odds = {
+                        odds_data = {
                             'event_key': event_key,
                             'sportsbook': self.name,
                             'market': markets[i],
@@ -152,14 +152,14 @@ class FanDuelClient(SportsbookClient):
                         market_key = create_market_key(markets[i], lines[i])
                         self.redis.sadd(f'{self.name}:markets:{event_key}', market_key)
 
-                        odds_hash = generate_odds_hash(odds)
+                        odds_hash = generate_odds_hash(odds_data)
                         prev_hash = self.redis.hget(f'{self.name}:hashes:{event_key}:{market_key}', outcomes[i])
                         if prev_hash != odds_hash:
                             # Odds data have changed, cache odds and update DB
-                            self.redis.hset(f'{self.name}:odds:{event_key}:{market_key}', outcomes[i], json.dumps(odds))
+                            self.redis.hset(f'{self.name}:odds:{event_key}:{market_key}', outcomes[i], json.dumps(odds_data))
                             self.redis.hset(f'{self.name}:hashes:{event_key}:{market_key}', outcomes[i], odds_hash)
-                            insert_or_update_odds.delay(odds)
-                            logger.info(f'({self.name}) cached {format_odds(odds)} | league={self.league}, event_key={event_key}')
+                            insert_or_update_odds.delay(odds_data)
+                            logger.info(f'({self.name}) cached {format_odds(odds_data)} | league={self.league}, event_key={event_key}')
 
                 except Exception as e:
                     logger.exception(f'({self.name}) {e} occured while scraping odds | league={self.league}')

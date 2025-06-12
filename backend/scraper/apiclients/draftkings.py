@@ -1,6 +1,6 @@
 import json
-from .base import SportsbookClient
-from workers.tasks import insert_or_update_odds
+from scraper.apiclients.base import SportsbookClient
+from core.tasks import insert_or_update_odds
 from common.constants import DRAFTKINGS_URLS
 from common.utils import (
     normalize_team_name, normalize_market_name, create_event_key, 
@@ -110,7 +110,7 @@ class DraftKingsClient(SportsbookClient):
 					self.redis.sadd(f'{self.name}:markets:{event_key}', market_key)
 
 					value = selection['trueOdds']
-					odds = {
+					odds_data = {
 						'event_key': event_key,
 						'sportsbook': self.name,
 						'market': market,
@@ -122,14 +122,14 @@ class DraftKingsClient(SportsbookClient):
 						'collected_at': current_timestamp()
 					}
 
-					odds_hash = generate_odds_hash(odds)
+					odds_hash = generate_odds_hash(odds_data)
 					prev_hash = self.redis.hget(f'{self.name}:hashes:{event_key}:{market_key}', outcome)
 					if prev_hash != odds_hash:
 						# Odds data have changed, cache odds and update DB
-						self.redis.hset(f'{self.name}:odds:{event_key}:{market_key}', outcome, json.dumps(odds))
+						self.redis.hset(f'{self.name}:odds:{event_key}:{market_key}', outcome, json.dumps(odds_data))
 						self.redis.hset(f'{self.name}:hashes:{event_key}:{market_key}', outcome, odds_hash)
-						insert_or_update_odds.delay(odds)
-						logger.info(f'({self.name}) cached {format_odds(odds)} | league={self.league}, event_key={event_key}')
+						insert_or_update_odds.delay(odds_data)
+						logger.info(f'({self.name}) cached {format_odds(odds_data)} | league={self.league}, event_key={event_key}')
 
 				except Exception as e:
 					logger.exception(f'({self.name}) {e} occured while scraping odds | league={self.league}')

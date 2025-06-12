@@ -14,8 +14,6 @@ SPORTS_LEAGUES = {
     'hockey': ['nhl',],
 }
 
-SPIDER_SCRAPERS = []
-
 CLIENT_SCRAPERS = [ 'espn', 'draftkings', 'fanduel', ]
 
 CLIENT_MAP = {
