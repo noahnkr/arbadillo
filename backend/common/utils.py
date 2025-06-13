@@ -1,14 +1,11 @@
-from .constants import LEAGUE_ALIASES, MARKET_ALIASES, CLIENT_MAP, SPORTS_LEAGUES, STATUS_ALIASES
-from .exceptions import NormalizationError
-from .logging import configure_logging
+from common.constants import LEAGUE_ALIASES, MARKET_ALIASES, CLIENT_MAP, SPORTS_LEAGUES, STATUS_ALIASES
+from common.exceptions import NormalizationError
 from datetime import datetime
 from dateutil import tz
 import importlib
 import hashlib
 import json
 import re
-
-logger = configure_logging(__name__)
 
 # ---------- String Helpers -----------
 
@@ -43,19 +40,9 @@ def create_market_key(market: str, line: float = None, player: str = None, prop:
     return ':'.join(components)
 
 
-def generate_event_hash(event: dict) -> str:
-    """Create a hash representing the event's meaningful state."""
-    fields = ['event_key', 'league', 'start_time', 'away', 'home', 'status']
-    relevant = {k: event[k] for k in fields if k in event}
-    raw = json.dumps(relevant, sort_keys=True)
-    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
-
-
-def generate_odds_hash(odds_data: dict) -> str:
-    """Create a hash to uniquely identify a specific odds line."""
-    fields = ['event_key', 'market', 'outcome', 'line', 'value', 'player', 'prop']
-    relevant = {k: odds_data[k] for k in fields if k in odds_data}
-    raw = json.dumps(relevant, sort_keys=True)
+def generate_data_hash(data: dict) -> str:
+    """Create a hash of the input data"""
+    raw = json.dumps(data, sort_keys=True)
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
@@ -118,14 +105,14 @@ def get_sport_from_league(league: str) -> str:
     raise NormalizationError(f'Unknown league `{league}`')
 
 
-def format_odds(odds: dict) -> str:
+def format_odds(odds_data: dict) -> str:
     """Formats odds data into a readable string."""
-    market = odds['market']
-    outcome = odds['outcome']
-    line = odds['line']
-    value = decimal_to_american(odds['value'])
-    player = odds['player']
-    prop = odds['prop']
+    market = odds_data['market']
+    outcome = odds_data['outcome']
+    line = odds_data['line']
+    value = decimal_to_american(odds_data['value'])
+    player = odds_data['player']
+    prop = odds_data['prop']
     if market == 'moneyline':
         odds_str = f'{outcome} ({value})'
     elif  market == 'spread' or market == 'total':
