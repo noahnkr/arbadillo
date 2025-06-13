@@ -18,7 +18,7 @@ services:
         build:
             context: ./backend
         container_name: celery-worker
-        command: celery -A celery_app worker --loglevel=info
+        command: celery -A core worker -l INFO
         volumes:
             - ./backend:/app
         env_file:
@@ -31,7 +31,7 @@ services:
         build:
             context: ./backend
         container_name: celery-beat
-        command: celery -A celery_app beat --loglevel=info
+        command: celery -A core beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
         volumes:
             - ./backend:/app
         env_file:

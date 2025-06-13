@@ -11,12 +11,14 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'core',
+    'scraper',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -34,20 +36,38 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'default': {
-            'format': '[%(asctime)s] %(levelname)s - %(name)s: %(message)s',
-            'datefmt': '%Y-%m-%d %H:%M:%S'
+            'format': '[%(asctime)s: %(levelname)s/%(name)s] %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
         },
     },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'default',
+            'stream': 'ext://sys.stdout',
         },
     },
     'root': {
         'handlers': ['console'],
         'level': 'INFO',
     },
+    'loggers': {
+        'django.db.backends': {
+            'level': 'WARNING',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+        'celery': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+        'scraper': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+    }
 }
 
 
@@ -100,15 +120,19 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Redis
+
 REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
 REDIS_PORT = os.getenv('REDIS_PORT', 6379)
 REDIS_DB = os.getenv('REDIS_DB', 0)
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', None)
-
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', f'redis://{REDIS_HOST}:{REDIS_PORT}/1')
+
+# Celery
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
+CELERY_ENABLE_UTC = True
