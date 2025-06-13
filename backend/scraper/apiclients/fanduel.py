@@ -1,17 +1,14 @@
 import json
 import re
-from scraper.apiclients.base import SportsbookClient
-from core.tasks import insert_or_update_odds
+from .base import SportsbookClient
+from core.tasks import upsert_odds
 from common.constants import FANDUEL_URLS
 from common.utils import (
     normalize_team_name, normalize_market_name, create_event_key, 
-	current_timestamp, generate_odds_hash, create_market_key, utc_to_cst, 
-	format_odds, clean_str
+	generate_data_hash, create_market_key, utc_to_cst, format_odds,
 )
+from common.exceptions import NormalizationError
 from common.playwright_manager import PlaywrightSessionManager
-from common.logging import configure_logging
-
-logger = configure_logging(__name__)
 
 class FanDuelClient(SportsbookClient):
     name = 'fanduel'
@@ -24,7 +21,7 @@ class FanDuelClient(SportsbookClient):
     def parse_schedule(self):
         url = FANDUEL_URLS[self.league]
         if url:
-            logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
+            self.logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
             try:
                 headers = {
                     'origin': 'https://sportsbook.fanduel.com',
@@ -36,7 +33,7 @@ class FanDuelClient(SportsbookClient):
                 }
                 data = self.fetch_data(url, headers=headers, params=params, session=self.session)
             except Exception as e:
-                logger.exception(f'({self.name}) {e} occured while yielding schedule request | league={self.league}, url={url}')
+                self.logger.exception(f'({self.name}) {e} occured while yielding schedule request | league={self.league}, url={url}')
 
             for event in data['attachments']['events'].values():
                 try:
@@ -58,21 +55,23 @@ class FanDuelClient(SportsbookClient):
                     event_key = create_event_key(self.league, start_date, away, home)
                     if self.redis.hexists('espn:events', event_key):
                         self.redis.hset(f'{self.name}:events', event_id, event_key)
-                        logger.info(f'({self.name}) successfully matched event key to ESPN schedule | league={self.league}, event_key={event_key}')
+                        self.logger.info(f'({self.name}) successfully matched event key to ESPN schedule | league={self.league}, event_key={event_key}')
                     else:
-                        logger.warning(f'({self.name}) unable to match event key to ESPN schedule | league={self.league}, event_key={event_key}')
+                        self.logger.warning(f'({self.name}) unable to match event key to ESPN schedule | league={self.league}, event_key={event_key}')
 
+                except NormalizationError as e:
+                    self.logger.warning(f'({self.name}) {e}')
                 except Exception as e:
-                    logger.exception(f'({self.name}) {e} occured while scraping event in schedule | league={self.league}')
+                    self.logger.exception(f'({self.name}) {e} occured while scraping event in schedule | league={self.league}')
 
         else:
-            logger.warning(f'({self.name}) schedule url not found | league={self.league}')
+            self.logger.warning(f'({self.name}) schedule url not found | league={self.league}')
 
     
     def parse_odds(self):
         url = FANDUEL_URLS[self.league]
         if url:
-            logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
+            self.logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
             try:
                 headers = {
                     'origin': 'https://sportsbook.fanduel.com',
@@ -84,7 +83,7 @@ class FanDuelClient(SportsbookClient):
                 }
                 data = self.fetch_data(url, headers=headers, params=params, session=self.session)
             except Exception as e:
-                logger.exception(f'({self.name}) {e} occured while yielding odds request | league={self.league}, url={url}')
+                self.logger.exception(f'({self.name}) {e} occured while yielding odds request | league={self.league}, url={url}')
 
             for market in data['attachments']['markets'].values():
                 try:
@@ -133,7 +132,7 @@ class FanDuelClient(SportsbookClient):
                             market['runners'][1]['winRunnerOdds']['trueOdds']['decimalOdds']['decimalOdds']
                         ])
                     else:
-                        logger.warning(f'({self.name}) market not supported | league={self.league}, market={market}')
+                        self.logger.warning(f'({self.name}) market not supported | league={self.league}, market={market}')
                         continue
 
                     for i in range(len(markets)):
@@ -146,23 +145,24 @@ class FanDuelClient(SportsbookClient):
                             'value': values[i],
                             'player': None,
                             'prop': None,
-                            'collected_at': current_timestamp()
                         }
 
                         market_key = create_market_key(markets[i], lines[i])
                         self.redis.sadd(f'{self.name}:markets:{event_key}', market_key)
 
-                        odds_hash = generate_odds_hash(odds_data)
+                        odds_hash = generate_data_hash(odds_data)
                         prev_hash = self.redis.hget(f'{self.name}:hashes:{event_key}:{market_key}', outcomes[i])
                         if prev_hash != odds_hash:
                             # Odds data have changed, cache odds and update DB
+                            upsert_odds.delay(odds_data)
                             self.redis.hset(f'{self.name}:odds:{event_key}:{market_key}', outcomes[i], json.dumps(odds_data))
                             self.redis.hset(f'{self.name}:hashes:{event_key}:{market_key}', outcomes[i], odds_hash)
-                            insert_or_update_odds.delay(odds_data)
-                            logger.info(f'({self.name}) cached {format_odds(odds_data)} | league={self.league}, event_key={event_key}')
+                            self.logger.info(f'({self.name}) stored {format_odds(odds_data)} | league={self.league}, event_key={event_key}')
 
+                except NormalizationError as e:
+                    self.logger.warning(f'({self.name}) {e}')
                 except Exception as e:
-                    logger.exception(f'({self.name}) {e} occured while scraping odds | league={self.league}')
+                    self.logger.exception(f'({self.name}) {e} occured while scraping odds | league={self.league}')
 
         else:
-            logger.warning(f'({self.name}) schedule url not found | league={self.league}')
+            self.logger.warning(f'({self.name}) schedule url not found | league={self.league}')

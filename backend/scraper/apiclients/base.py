@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from django.conf import settings
 from redis import Redis
+import logging
 import requests
 
 class SportsbookClient(ABC):
@@ -13,6 +14,7 @@ class SportsbookClient(ABC):
             db=settings.REDIS_DB,
             decode_responses=True
         )
+        self.logger = logging.getLogger('scraper')
 
 
     def fetch_data(self, url, headers=None, params=None, session=None):

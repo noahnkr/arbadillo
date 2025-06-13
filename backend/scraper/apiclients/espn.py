@@ -1,17 +1,15 @@
 import json
 from datetime import datetime, timedelta
 from dateutil import tz
-from scraper.apiclients.base import SportsbookClient
-from core.tasks import insert_or_update_event, insert_or_update_odds
+from .base import SportsbookClient
+from core.tasks import upsert_event, upsert_odds
 from common.constants import ESPN_URLS, ESPNBET_URLS
 from common.utils import (
 	normalize_team_name, normalize_status_name, create_event_key, create_market_key, 
-	utc_to_cst, current_timestamp, generate_event_hash, generate_odds_hash, extract_float,
+	utc_to_cst, generate_data_hash, extract_float,
 	format_odds,
 )
-from common.logging import configure_logging
-
-logger = configure_logging(__name__)
+from common.exceptions import NormalizationError
 
 class ESPNClient(SportsbookClient):
 	name = 'espn'
@@ -23,7 +21,7 @@ class ESPNClient(SportsbookClient):
 	def parse_schedule(self):
 		url = ESPN_URLS[self.league]
 		if url:
-			logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
+			self.logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
 			try:
 				central = tz.gettz('America/Chicago')
 				today = datetime.now(tz=central).strftime('%Y%m%d')
@@ -32,7 +30,7 @@ class ESPNClient(SportsbookClient):
 				tomorrow = (datetime.now(tz=central) + timedelta(days=1)).strftime('%Y%m%d')
 				tomorrow_data = self.fetch_data(url, params={'dates': tomorrow})
 			except Exception as e:
-				logger.exception(f'({self.name}) {e} occured while yielding schedule request | league={self.league}, url={url}')
+				self.logger.exception(f'({self.name}) {e} occured while yielding schedule request | league={self.league}, url={url}')
 
 			events = today_data['events'] + (tomorrow_data['events'])
 			for event in events:
@@ -61,30 +59,31 @@ class ESPNClient(SportsbookClient):
 						'away': away,
 						'home': home,
 						'status': status,
-						'collected_at': current_timestamp()
 					}
 
-					event_hash = generate_event_hash(event_data)
+					event_hash = generate_data_hash(event_data)
 					prev_hash = self.redis.hget(f'{self.name}:hashes', event_key)
 
 					if prev_hash != event_hash:
 						# Event data has changed, cache event and update DB
+						upsert_event.delay(event_data)
 						self.redis.hset(f'{self.name}:events', event_key, json.dumps(event_data))
 						self.redis.hset(f'{self.name}:keys', event_id, event_key)
 						self.redis.hset(f'{self.name}:hashes', event_id, event_hash)
-						insert_or_update_event.delay(event_data)
-						logger.info(f'({self.name}) scraped event | league={self.league}, event_key={event_key}')
+						self.logger.info(f'({self.name}) scraped event | league={self.league}, event_key={event_key}')
 
+				except NormalizationError as e:
+					self.logger.warning(f'({self.name}) {e}')
 				except Exception as e:
-					logger.exception(f'({self.name}) {e} occured while parsing event | league={self.league}')
+					self.logger.exception(f'({self.name}) {e} occured while parsing event | league={self.league}')
 		else:
-			logger.warning(f'({self.name}) schedule url not found | league={self.league}')
+			self.logger.warning(f'({self.name}) schedule url not found | league={self.league}')
 
 
 	def parse_odds(self):
 		url = ESPNBET_URLS[self.league]
 		if url:
-			logger.info(f'({self.name}) starting odds request | league={self.league}, url={url}')
+			self.logger.info(f'({self.name}) starting odds request | league={self.league}, url={url}')
 			event_ids = self.redis.smembers(f'{self.name}:events:{self.league}:active')
 			for e_id in event_ids:
 				try:
@@ -92,14 +91,14 @@ class ESPNClient(SportsbookClient):
 					event_key = self.redis.hget(f'{self.name}:keys', e_id)
 					event_data = self.fetch_data(event_url)
 				except Exception as e:
-					logger.exception(f'({self.name}) {e} occured while yielding schedule request | league={self.league}, url={event_url}')
+					self.logger.exception(f'({self.name}) {e} occured while yielding schedule request | league={self.league}, url={event_url}')
 
 				try:
 					event = json.loads(self.redis.hget(f'{self.name}:events', event_key))
 					providers = event_data['items']
 					
 					if not providers:
-						logger.info(f'({self.name}) no odds avaialable | league={self.league}, event_key={event_key}')
+						self.logger.info(f'({self.name}) no odds avaialable | league={self.league}, event_key={event_key}')
 						continue
 
 					# Live odds stored in seperate dict
@@ -148,25 +147,26 @@ class ESPNClient(SportsbookClient):
 							'value': values[i],
 							'player': None,
 							'prop': None,
-							'collected_at': current_timestamp()
 						}
 
 						market_key = create_market_key(markets[i], lines[i])
 						self.redis.sadd(f'{self.name}:markets:{event_key}', market_key)
 
-						odds_hash = generate_odds_hash(odds_data)
+						odds_hash = generate_data_hash(odds_data)
 						prev_hash = self.redis.hget(f'{self.name}:hashes:{event_key}:{market_key}', outcomes[i])
 						if prev_hash != odds_hash:
 							# Odds data have changed, cache odds and update DB
+							upsert_odds.delay(odds_data)
 							self.redis.hset(f'{self.name}:odds:{event_key}:{market_key}', outcomes[i], json.dumps(odds_data))
 							self.redis.hset(f'{self.name}:hashes:{event_key}:{market_key}', outcomes[i], odds_hash)
-							insert_or_update_odds(odds_data)
-							logger.info(f'({self.name}) cached {format_odds(odds_data)} | league={self.league}, event_key={event_key}')
+							self.logger.info(f'({self.name}) stored {format_odds(odds_data)} | league={self.league}, event_key={event_key}')
 
+				except NormalizationError as e:
+					self.logger.warning(f'({self.name}) {e}')
 				except Exception as e:
-					logger.exception(f'({self.name}) {e} occured while scraping odds | league={self.league}')
+					self.logger.exception(f'({self.name}) {e} occured while scraping odds | league={self.league}')
 
 		else:
-			logger.warning(f'({self.name}) odds url not found | league={self.league}')
+			self.logger.warning(f'({self.name}) odds url not found | league={self.league}')
 
 

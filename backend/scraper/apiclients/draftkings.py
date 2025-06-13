@@ -1,15 +1,12 @@
 import json
-from scraper.apiclients.base import SportsbookClient
-from core.tasks import insert_or_update_odds
+from .base import SportsbookClient
+from core.tasks import upsert_odds
 from common.constants import DRAFTKINGS_URLS
 from common.utils import (
     normalize_team_name, normalize_market_name, create_event_key, 
-	current_timestamp, generate_odds_hash, create_market_key, utc_to_cst, 
-	format_odds,
+	generate_data_hash, create_market_key, utc_to_cst, format_odds,
 )
-from common.logging import configure_logging
-
-logger = configure_logging(__name__)
+from common.exceptions import NormalizationError
 
 class DraftKingsClient(SportsbookClient):
 	name = 'draftkings'
@@ -21,11 +18,11 @@ class DraftKingsClient(SportsbookClient):
 	def parse_schedule(self):
 		url = DRAFTKINGS_URLS[self.league]
 		if url:
-			logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
+			self.logger.info(f'({self.name}) starting schedule request | league={self.league}, url={url}')
 			try:
 				data = self.fetch_data(url)
 			except Exception as e:
-				logger.critical(f'({self.name}) {e} occured while yielding schedule request | league={self.league}, url={url}')
+				self.logger.critical(f'({self.name}) {e} occured while yielding schedule request | league={self.league}, url={url}')
 
 			for event in data['events']:
 				try:
@@ -42,26 +39,28 @@ class DraftKingsClient(SportsbookClient):
 					event_key = create_event_key(self.league, start_date, away, home)
 					if self.redis.hexists('espn:events', event_key):
 						self.redis.hset(f'{self.name}:events', event_id, event_key)
-						logger.info(f'({self.name}) successfully matched event key to ESPN schedule | league={self.league}, event_key={event_key}')
+						self.logger.info(f'({self.name}) successfully matched event key to ESPN schedule | league={self.league}, event_key={event_key}')
 					else:
-						logger.warning(f'({self.name}) unable to match event key to ESPN schedule | league={self.league}, event_key={event_key}')
+						self.logger.warning(f'({self.name}) unable to match event key to ESPN schedule | league={self.league}, event_key={event_key}')
 
+				except NormalizationError as e:
+					self.logger.warning(f'({self.name}) {e}')
 				except Exception as e:
-					logger.exception(f'({self.name}) {e} occured while scraping event in schedule | league={self.league}')
+					self.logger.exception(f'({self.name}) {e} occured while scraping event in schedule | league={self.league}')
 					continue
 		else:
-			logger.warning(f'({self.name}) schedule url not found | league={self.league}')
+			self.logger.warning(f'({self.name}) schedule url not found | league={self.league}')
 
 			
 		
 	def parse_odds(self):
 		url = DRAFTKINGS_URLS[self.league]
 		if url:
-			logger.info(f'({self.name}) starting odds request | league={self.league}, url={url}')
+			self.logger.info(f'({self.name}) starting odds request | league={self.league}, url={url}')
 			try:
 				data = self.fetch_data(url)
 			except Exception as e:
-				logger.critical(f'({self.name}) {e} occured while yielding odds request | league={self.league}, url={url}')
+				self.logger.critical(f'({self.name}) {e} occured while yielding odds request | league={self.league}, url={url}')
 			
 			# Each market (moneyline, spread, total, ...) has a unique market_id and event_id for its respective event
 			for market in data['markets']:
@@ -78,7 +77,7 @@ class DraftKingsClient(SportsbookClient):
 							'market':  market,
 					}))
 				except Exception as e:
-					logger.exception(f'({self.name}) {e} occured while scraping markets | league={self.league}')
+					self.logger.exception(f'({self.name}) {e} occured while scraping markets | league={self.league}')
 
 			# Match each outcome selection to its respective market and event
 			for selection in data['selections']:
@@ -103,7 +102,7 @@ class DraftKingsClient(SportsbookClient):
 						outcome = selection['label'].lower()
 						line = selection['points']
 					else:
-						logger.warning(f'({self.name}) market not supported | league={self.league}, market={market}')
+						self.logger.warning(f'({self.name}) market not supported | league={self.league}, market={market}')
 						continue
 
 					market_key = create_market_key(market, line)
@@ -119,20 +118,21 @@ class DraftKingsClient(SportsbookClient):
 						'value': value,
 						'player': None,
 						'prop': None,
-						'collected_at': current_timestamp()
 					}
 
-					odds_hash = generate_odds_hash(odds_data)
+					odds_hash = generate_data_hash(odds_data)
 					prev_hash = self.redis.hget(f'{self.name}:hashes:{event_key}:{market_key}', outcome)
 					if prev_hash != odds_hash:
 						# Odds data have changed, cache odds and update DB
+						upsert_odds.delay(odds_data)
 						self.redis.hset(f'{self.name}:odds:{event_key}:{market_key}', outcome, json.dumps(odds_data))
 						self.redis.hset(f'{self.name}:hashes:{event_key}:{market_key}', outcome, odds_hash)
-						insert_or_update_odds.delay(odds_data)
-						logger.info(f'({self.name}) cached {format_odds(odds_data)} | league={self.league}, event_key={event_key}')
+						self.logger.info(f'({self.name}) stored {format_odds(odds_data)} | league={self.league}, event_key={event_key}')
 
+				except NormalizationError as e:
+					self.logger.warning(f'({self.name}) {e}')
 				except Exception as e:
-					logger.exception(f'({self.name}) {e} occured while scraping odds | league={self.league}')
+					self.logger.exception(f'({self.name}) {e} occured while scraping odds | league={self.league}')
 		else:
-			logger.warning(f'({self.name}) odds url not found | league={self.league}')
+			self.logger.warning(f'({self.name}) odds url not found | league={self.league}')
 
