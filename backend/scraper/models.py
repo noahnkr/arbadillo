@@ -12,6 +12,8 @@ class Event(models.Model):
 
 class Odds(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='odds')
+    event_key = models.CharField(max_length=100)
+    market_key = models.CharField(max_length=100)
     sportsbook = models.CharField(max_length=50)
     market = models.CharField(max_length=50)
     outcome = models.CharField(max_length=100)
@@ -20,3 +22,6 @@ class Odds(models.Model):
     player = models.CharField(max_length=100, null=True, blank=True)
     prop = models.CharField(max_length=100, null=True, blank=True)
     collected_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('event_key', 'market_key', 'sportsbook', 'outcome')

@@ -14,11 +14,24 @@ services:
             - db
             - redis
 
-    celery-worker:
+    celery-worker-scraping:
         build:
             context: ./backend
-        container_name: celery-worker
-        command: celery -A core worker -l INFO
+        container_name: celery-worker-scraping
+        command: celery -A core worker -l WARNING -Q scraping
+        volumes:
+            - ./backend:/app
+        env_file:
+            - .env
+        depends_on:
+            - django
+            - redis
+
+    celery-worker-database:
+        build:
+            context: ./backend
+        container_name: celery-worker-database
+        command: celery -A core worker -l WARNING -Q database
         volumes:
             - ./backend:/app
         env_file:

@@ -2,22 +2,19 @@
 
 ## Infrastructure
 
--   [x] Dockerfiles for each component
--   [x] Docker compose
--   [x] Split dev and prod settings in Django
+-   [x] Fix Celery task logging
+-   [x] Seperate Celery queues for scraping and database operations
+-   [x] Converet Redis HSET -> SET and add TTL
+-   [x] Fix run_periodic_scrape chaining
 
 ## Scraping
 
--   [x] Scrape upcoming events from ESPN schedule
--   [ ] Celery task for distributing active events to sportsbook spiders
--   [ ] TTL for Redis cache
--   [ ] Redis cache cleanup
--   [ ] Celery config
--   [x] Redis config
+-   [ ] Incorporate player odds into API client parsing
+-   [ ] Normalize missed player prop market names
 
 ## Database
 
--   [ ] Create event insert/updates for Postgres
+-   [x] Batch insert event and odds
 
 ## API
 
