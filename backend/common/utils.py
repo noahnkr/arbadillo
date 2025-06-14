@@ -26,7 +26,7 @@ def extract_float(raw: str) -> float | None:
 
 # ---------- Sportsbook Helpers -----------
 
-def create_event_key(league: str, date: str, away:str, home:str,) -> str:
+def create_event_key(league: str, date: str, away:str, home:str) -> str:
     """Generate event key (primary ID) for database and Redis."""
     return f'{league}:{date}:{away}@{home}'
 
@@ -34,9 +34,9 @@ def create_event_key(league: str, date: str, away:str, home:str,) -> str:
 def create_market_key(market: str, line: float = None, player: str = None, prop: str = None) -> str:
     """Creates an index on a specific market selection across sportsbooks."""
     components = [market]
-    if line: components.append(str(line))
     if player: components.append(player)
     if prop: components.append(prop)
+    if line: components.append(str(line))
     return ':'.join(components)
 
 
@@ -160,6 +160,7 @@ def get_class_from_path(path: str):
     module_path, class_name = path.rsplit('.', 1)
     module = importlib.import_module(module_path)
     return getattr(module, class_name)
+
 
 def get_client(sportsbook: str, league: str):
     class_path = CLIENT_MAP.get(sportsbook.lower())

@@ -16,6 +16,10 @@ SPORTS_LEAGUES = {
 
 CLIENT_SCRAPERS = [ 'espn', 'draftkings', 'fanduel', ]
 
+EVENT_EXPIRATION_TIME = 60 * 60 * 24
+
+ODDS_EXPIRATION_TIME = 60 * 60
+
 CLIENT_MAP = {
     'espn': 'scraper.apiclients.espn.ESPNClient',
     'draftkings': 'scraper.apiclients.draftkings.DraftKingsClient',
