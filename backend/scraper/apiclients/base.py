@@ -6,7 +6,8 @@ import requests
 
 class SportsbookClient(ABC):
 
-    def __init__(self, league):
+    def __init__(self, name, league):
+        self.name = name
         self.league = league
         self.redis = Redis(
             host=settings.REDIS_HOST,
@@ -14,7 +15,7 @@ class SportsbookClient(ABC):
             db=settings.REDIS_DB,
             decode_responses=True
         )
-        self.logger = logging.getLogger('scraper')
+        self.logger = logging.getLogger(f'scraper.apiclients.{self.name}')
 
 
     def fetch_data(self, url, headers=None, params=None, session=None):

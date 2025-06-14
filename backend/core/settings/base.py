@@ -1,4 +1,5 @@
 import os
+from kombu import Queue
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -57,12 +58,22 @@ LOGGING = {
             'handlers': ['console'],
             'propagate': False,
         },
-        'celery': {
+        'scraper.tasks': {
             'level': 'INFO',
             'handlers': ['console'],
             'propagate': False,
         },
-        'scraper': {
+        'scraper.apiclients.espn': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+        'scraper.apiclients.draftkings': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+        'scraper.apiclients.fanduel': {
             'level': 'INFO',
             'handlers': ['console'],
             'propagate': False,
@@ -126,6 +137,7 @@ REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
 REDIS_PORT = os.getenv('REDIS_PORT', 6379)
 REDIS_DB = os.getenv('REDIS_DB', 0)
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', None)
+
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', f'redis://{REDIS_HOST}:{REDIS_PORT}/1')
 
@@ -134,5 +146,14 @@ CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', f'redis://{REDIS_HOST
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
+
 CELERY_TIMEZONE = 'UTC'
 CELERY_ENABLE_UTC = True
+
+CELERY_TASK_QUEUES = [
+    Queue('scraping', routing_key='scraping.#'),
+    Queue('database', routing_key='database.#'),
+]
+CELERY_TASK_DEFAULT_QUEUE = 'default'
+CELERY_TASK_DEFAULT_EXCHANGE = 'default'
+CELERY_TASK_DEFAULT_ROUTING_KEY = 'default'

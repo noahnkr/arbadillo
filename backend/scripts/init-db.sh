@@ -18,7 +18,7 @@ END
 echo "PostgreSQL is up. Starting Django..."
 
 # Run database migrations
-python manage.py makemigrations core
+python manage.py makemigrations scraper
 python manage.py makemigrations django_celery_beat
 python manage.py migrate
 
