@@ -1,4 +1,7 @@
-from common.constants import LEAGUE_ALIASES, MARKET_ALIASES, CLIENT_MAP, SPORTS_LEAGUES, STATUS_ALIASES
+from common.constants import (
+    TEAM_ALIASES, MARKET_ALIASES, MARKET_ALIASES, CLIENT_MAP, SPORTS_LEAGUES, 
+    STATUS_ALIASES, MARKET_TYPE_ALIASES,
+)
 from common.exceptions import NormalizationError
 from datetime import datetime
 from dateutil import tz
@@ -31,11 +34,13 @@ def create_event_key(league: str, date: str, away:str, home:str) -> str:
     return f'{league}:{date}:{away}@{home}'
 
 
-def create_market_key(market: str, line: float = None, player: str = None, prop: str = None) -> str:
+def create_market_key(
+        market: str, line: float = None, team: str = None, player: str = None
+    ) -> str:
     """Creates an index on a specific market selection across sportsbooks."""
     components = [market]
     if player: components.append(player)
-    if prop: components.append(prop)
+    if team: components.append(team)
     if line: components.append(str(line))
     return ':'.join(components)
 
@@ -74,19 +79,19 @@ def decimal_to_american(decimal_odds: float) -> int:
 
 def normalize_team_name(name: str, league: str) -> str:
     """Normalizes a team name to a slugified standard."""
-    team_aliases = LEAGUE_ALIASES[league]
+    team_aliases = TEAM_ALIASES[league]
     for standard, aliases in team_aliases.items():
         if clean_str(name) in map(clean_str, aliases):
             return standard
     raise NormalizationError(f'Unkown team name `{name}` for league `{league}`')
 
 
-def normalize_market_name(market: str) -> str:
+def normalize_market_name(market: str, league: str) -> str:
     """Normalizes a sportsbook's market name to a standard."""
-    for standard, aliases in MARKET_ALIASES.items():
+    for standard, aliases in MARKET_ALIASES[league].items():
         if clean_str(market) in map(clean_str, aliases):
             return standard
-    raise NormalizationError(f'Unkown market name `{market}`')
+    raise NormalizationError(f'Unkown market name `{market}` for league `{league}`')
 
 
 def normalize_status_name(status: str) -> str:
@@ -105,20 +110,38 @@ def get_sport_from_league(league: str) -> str:
     raise NormalizationError(f'Unknown league `{league}`')
 
 
+def get_market_type(market: str) -> str:
+    """Gets the type of betting market for a betting prop."""
+    for market_type, markets in MARKET_TYPE_ALIASES.items():
+        if market in markets:
+            return market_type
+    raise NormalizationError(f'Unknown market type for `{market}`')
+
+
 def format_odds(odds_data: dict) -> str:
     """Formats odds data into a readable string."""
+    market_type = get_market_type(odds_data['market'])
     market = odds_data['market']
     outcome = odds_data['outcome']
     line = odds_data['line']
     value = decimal_to_american(odds_data['value'])
+    team = odds_data['teeam']
     player = odds_data['player']
-    prop = odds_data['prop']
-    if market == 'moneyline':
-        odds_str = f'{outcome} ({value})'
-    elif  market == 'spread' or market == 'total':
-        odds_str = f'{outcome} {line} ({value})'
+    if market_type == 'moneyline':
+        odds_str = f'{outcome} {market} ({value})'
+    elif market_type in ['spread', 'total']:
+        odds_str = f'{outcome} {line} {market} ({value})'
+    elif market_type == 'over_under':
+        team_or_player = (team or player) if team or player else ''
+        seperator = ' ' if team_or_player else ''
+        odds_str = f'{team_or_player}{seperator}{outcome} {line} {market} ({value})'
+    elif market_type == 'yes_no':
+        team_or_player = (team or player) if team or player else ''
+        seperator = ' ' if team_or_player else ''
+        odds_str = f'{team_or_player}{seperator}{outcome} {market} ({value})'
     else:
-        odds_str = f'({player} {outcome} {line} {prop} ({value})'
+        raise NormalizationError(f'Unknown market type for `{market}`')
+    
     return odds_str
 
 # ---------- Time Helpers -----------
