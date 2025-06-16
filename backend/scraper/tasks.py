@@ -105,10 +105,11 @@ def batch_upsert_odds(odds_data: list):
 	to_create, to_update = [], []
 
 	existing_odds = {
-		(o.event_key, o.market_key, o.sportsbook): o
+		(o.event_key, o.market_key, o.sportsbook, o.outcome): o
 		for o in Odds.objects.filter(
 			event_key__in=[o['event_key'] for o in odds_data],
-			sportsbook__in=[o['sportsbook'] for o in odds_data]
+			sportsbook__in=[o['sportsbook'] for o in odds_data],
+			outcome__in=[o['outcome'] for o in odds_data]
 		)
 	}
 
@@ -118,7 +119,7 @@ def batch_upsert_odds(odds_data: list):
 	}
 
 	for odds in odds_data:
-		key = (odds['event_key'], odds['market_key'], odds['sportsbook'])
+		key = (odds['event_key'], odds['market_key'], odds['sportsbook'], odds['outcome'])
 		event = event_map.get(odds['event_key'])
 		if not event:
 			event_key = odds['event_key']
@@ -129,10 +130,10 @@ def batch_upsert_odds(odds_data: list):
 		if existing:
 			has_changes = any(
 				getattr(existing, field) != odds[field]
-				for field in ['market', 'outcome', 'line', 'value', 'player', 'prop']
+				for field in ['market', 'outcome', 'line', 'value', 'team', 'player']
 			)
 			if has_changes:
-				for field in ['market', 'outcome', 'line', 'value', 'player', 'prop']:
+				for field in ['market', 'outcome', 'line', 'value', 'team', 'player']:
 					setattr(existing, field, odds[field])
 				existing.collected_at = now()
 				to_update.append(existing)
@@ -144,17 +145,17 @@ def batch_upsert_odds(odds_data: list):
                 sportsbook=odds['sportsbook'],
                 market=odds['market'],
                 outcome=odds['outcome'],
-                line=odds.get('line'),
+                line=odds['line'],
                 value=odds['value'],
-                player=odds.get('player'),
-                prop=odds.get('prop'),
+				team=odds['team'],
+                player=odds['player'],
 			))
 
 	if to_create:
 		Odds.objects.bulk_create(to_create)
 		logger.info(f'created {len(to_create)} odds rows.')
 	if to_update:
-		Odds.objects.bulk_update(to_update, ['market', 'outcome', 'line', 'value', 'player', 'prop', 'collected_at'])
+		Odds.objects.bulk_update(to_update, ['market', 'outcome', 'line', 'value', 'team', 'player', 'collected_at'])
 		logger.info(f'updated {len(to_update)} odds rows.')
 
 				
