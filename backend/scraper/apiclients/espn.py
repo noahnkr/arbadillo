@@ -5,7 +5,7 @@ from .base import SportsbookClient
 from scraper.tasks import batch_upsert_events, batch_upsert_odds
 from common.constants import (
     ESPN_URLS, ESPNBET_URLS, EVENT_EXPIRATION_TIME, ODDS_EXPIRATION_TIME,
-    PLAYER_EXPIRATION_TIME, TEAM_EXPIRATION_TIME,
+    PLAYER_EXPIRATION_TIME, TEAM_EXPIRATION_TIME, STATUSES,
 )
 from common.utils import (
 	normalize_team_name, normalize_market_name, normalize_status_name, create_event_key, 
@@ -53,10 +53,11 @@ class ESPNClient(SportsbookClient):
 				event_key = create_event_key(self.league, start_date, away, home)
 
 				status = normalize_status_name(event['status']['type']['state'])
-				if status in ['upcoming', 'active']:
-					self.redis.sadd(f'{self.name}:events:{self.league}:active', event_id)
-				else:
-					self.redis.srem(f'{self.name}:events:{self.league}:active', event_id)
+				self.redis.sadd(f'{self.name}:events:{status}', event_key)
+				# Remove from other status sets if status has changed
+				for s in STATUSES:
+					if s != status:
+						self.redis.srem(f'{self.name}:events:{s}', event_key)
 
 				event_data = {
 					'event_key': event_key,
@@ -74,7 +75,7 @@ class ESPNClient(SportsbookClient):
 					events.append(event_data)
 					self.redis.set(f'{self.name}:events:{event_key}', json.dumps(event_data), ex=EVENT_EXPIRATION_TIME)
 					self.redis.set(f'{self.name}:hashes:{event_key}', event_hash, ex=EVENT_EXPIRATION_TIME)
-					self.redis.set(f'{self.name}:keys:{event_id}', event_key, ex=EVENT_EXPIRATION_TIME)
+					self.redis.set(f'{self.name}:ids:{event_key}', event_id, ex=EVENT_EXPIRATION_TIME)
 					self.logger.info(f'scraped {event_key} ({self.league})')
 
 			except NormalizationError as e:
@@ -89,27 +90,27 @@ class ESPNClient(SportsbookClient):
 			batch_upsert_events.delay(events)
 
 
-	def parse_odds(self):
+	def parse_odds(self, status):
 		url = ESPNBET_URLS[self.league]
 		if not url:
 			self.logger.warning(f'odds url not found ({self.league})')
 			return
 
 		self.logger.info(f'starting odds request ({self.league})')
-		event_ids = self.redis.smembers(f'{self.name}:events:{self.league}:active')
+		keys = self.redis.smembers(f'{self.name}:events:{self.league}:{status}')
 
 		odds = []
-		for e_id in event_ids:
+		for event_key in keys:
 			try:
-				event_key = self.redis.get(f'{self.name}:keys:{e_id}')
-				if not event_key:
+				event_id = self.redis.get(f'{self.name}:ids:{event_key}')
+				if not event_id:
 					continue
 
-				event_url = url + f'/{e_id}/competitions/{e_id}/odds'
+				event_url = url + f'/{event_id}/competitions/{event_id}/odds'
 				event_data = self.fetch_data(event_url)
 				self.logger.info(f'fetched {event_key} odds ({self.league})')
 			except Exception as e:
-				self.logger.exception(f'{e} occured while yielding odds request to {event_url} ({self.league})')
+				self.logger.warning(f'{e} occured while yielding odds request to {event_url} for {event_key} ({self.league})')
 				continue
 
 			try:
@@ -117,6 +118,7 @@ class ESPNClient(SportsbookClient):
 				odds.extend(event_odds)
 			except Exception as e:
 				self.logger.exception(f'{e} occured while scraping odds for {event_key} ({self.league})')
+				continue
 
 		if not odds:
 			self.logger.info(f'no new odds to upsert ({self.league})')
@@ -134,7 +136,7 @@ class ESPNClient(SportsbookClient):
 		elif len(providers) > 1:
 			selections  = providers	[1]
 		else:
-			self.logger.info(f'no valid odds provider for {event_key} ({self.league})')
+			self.logger.warning(f'no valid odds provider for {event_key} ({self.league})')
 			return []
 
 		markets, outcomes, lines, values = [], [], [], []
@@ -195,21 +197,45 @@ class ESPNClient(SportsbookClient):
 				self.logger.info(f'scraped {format_odds(odds_data)} for {event_key} ({self.league})')
 
 		
+		# Cache url to player prop bets
 		prop_url = selections['propBets']['$ref']
-		prop_odds = self.parse_props(event_key, prop_url)
-		event_odds.extend(prop_odds)
+		self.redis.set(f'{self.name}:prop_urls:{event_key}', prop_url, ex=EVENT_EXPIRATION_TIME)
 
 		return event_odds
 
 	
-	def parse_props(self, event_key, prop_url) -> list:
-		try:
-			prop_data = self.fetch_data(prop_url, params={'limit': 1000})
-			self.logger.info(f'fetched {len(prop_data["items"])} props for {event_key} ({self.league})')
-		except Exception as e:
-			self.logger.exception(f'{e} occured while yielding prop request to {prop_url} ({self.league})')
-			return []
+	def parse_props(self, status): 
+		self.logger.info(f'starting props request ({self.league})')
+		keys = self.redis.smembers(f'{self.name}:events:{status}')
 
+		odds = []
+		for event_key in keys:
+			url = self.redis.get(f'{self.name}:prop_urls:{event_key}')
+			if not url:
+				self.logger.warning(f'prop url not found for {event_key} ({self.league})')
+				continue
+
+			try:
+				prop_data = self.fetch_data(url, params={'limit': 1000})
+				self.logger.info(f'fetched {len(prop_data["items"])} props for {event_key} ({self.league})')
+			except Exception as e:
+				self.logger.warning(f'{e} occured while yielding prop request to {url} for {event_key} ({self.league})')
+				continue
+
+			try:
+				prop_odds = self.parse_event_props(self, event_key, prop_data)
+				odds.extend(prop_odds)
+			except Exception as e:
+				self.logger.exception(f'{e} occured while scraping odds for {event_key} ({self.league})')
+				
+		if not odds:
+			self.logger.info(f'no new props to upsert ({self.league})')
+		else:
+			self.logger.info(f'upserting {len(odds)} props ({self.league})')
+			batch_upsert_odds.delay(odds)
+
+
+	def parse_event_props(self, event_key, prop_data) -> list:
 		prop_odds = []
 		for prop in prop_data['items']:
 			try:

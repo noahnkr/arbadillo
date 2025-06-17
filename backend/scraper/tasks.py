@@ -8,58 +8,86 @@ from .models import Event, Odds
 logger = logging.getLogger(__name__)
 
 @shared_task(queue='scraping')
-def launch_client(client_name, mode=None, league=None):
-	"""Launches a client scraper to parse schedule or odds data for a given league."""
+def launch_client(client_name, mode, league, status=None):
+	"""
+	Launches a client scraper to parse the upcoming or active schedule, odds, or props data for a given league.
+	"""
 	logger.info(f'launching {mode} client: {client_name} ({league})...')
 	client = get_client(client_name, league)
-	client.parse_schedule() if mode == 'schedule' else client.parse_odds()
+	if mode == 'schedule':
+		client.parse_schedule()
+	elif mode == 'odds':
+		client.parse_odds(status)
+	elif mode == 'props':
+		client.parse_props(status)
+	else:
+		logger.warning(f'unknown mode `{mode}`')
 
 
 @shared_task(queue='scraping')
-def run_periodic_scrape():
+def run_initial_scrape():
 	"""
-    Initiates a periodic scrape workflow:
+    Initiates an inital scrape workflow on startup:
     - Collects ESPN events.
     - Collects sportsbook events.
     - Collects sportsbook odds.
     """
-	logger.info(f'running periodic scrape...')
+	logger.info(f'running initial scrape...')
 	logger.info(f'collecting ESPN events...')
 	chord(
 		group(
 			launch_client.s('espn', mode='schedule', league=lg)
 			for lg in LEAGUES
 		),
-		collect_sportsbook_events.si()
+		collect_initial_sportsbook_events.si()
 	).apply_async()
 
 
 @shared_task(queue='scraping')
-def collect_sportsbook_events():
+def collect_initial_sportsbook_events():
 	"""
     Collects events from all sportsbooks except ESPN.
     This task is triggered after ESPN events are collected.
     """
-	logger.info(f'collecting sportsbook events...')
+	logger.info(f'collecting initial sportsbook events...')
 	chord(
 		group(
 			launch_client.s(sbook, mode='schedule', league=lg)
 			for sbook in CLIENT_SCRAPERS if sbook != 'espn'
 			for lg in LEAGUES
 		),
-		collect_sportsbook_odds.si()
+		collect_initial_sportsbook_odds.si()
 	).apply_async()
 
 
 @shared_task(queue='scraping')
-def collect_sportsbook_odds():
+def collect_initial_sportsbook_odds():
 	"""
-    Collects odds data from all sportsbooks for all leagues.
-    This task is triggered after sportsbook events are collected.
-    """
-	logger.info(f'collecting sportsbook odds...')
+	Collecets pre-match and live odds and props from all sportsbooks.
+	This task is triggered after each sportsbooks schedule is collected.
+	"""
+	logger.info(f'collecting initial sportsbook odds...')
 	group(
-		launch_client.s(sbook, mode='odds', league=lg)
+		collect_sportsbook_odds.s(mode=mode, status=status)
+		for mode in ['odds', 'props']
+		for status in ['upcoming', 'active']
+	).apply_async()
+
+
+@shared_task(queue='scraping')
+def collect_sportsbook_odds(mode, status):
+	"""
+	Collects odds or props from all sportsbooks for all leagues for the given event status.
+	Args:
+		- mode: either `odds` or `props`. Props for a specific event have their own respective API url, which 
+		  means their scraping pipeline should be seperated from the popular markets which are usually batched
+		  by league. This improves efficiency of scraping while still utilizing concurrency.
+		- status: either `upcoming` o `active`, since pre-match odds change less frequently than live
+		  odds, we should collect them on different intervals.
+	"""
+	logger.info(f'collecting sportsbook {mode} ({status})...')
+	group(
+		launch_client.s(sbook, mode=mode, league=lg, status=status)
 		for sbook in CLIENT_SCRAPERS
 		for lg in LEAGUES
 	).apply_async()

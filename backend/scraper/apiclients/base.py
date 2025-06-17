@@ -40,6 +40,10 @@ class SportsbookClient(ABC):
 
 
     @abstractmethod
-    def parse_odds(self):
+    def parse_odds(self, status):
         pass
-    
+
+
+    @abstractmethod
+    def parse_props(self, status):
+        pass
