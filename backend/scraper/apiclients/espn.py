@@ -5,11 +5,11 @@ from .base import SportsbookClient
 from scraper.tasks import batch_upsert_events, batch_upsert_odds
 from common.constants import (
     ESPN_URLS, ESPNBET_URLS, EVENT_EXPIRATION_TIME, ODDS_EXPIRATION_TIME,
-    PLAYER_EXPIRATION_TIME, TEAM_EXPIRATION_TIME, ESPNBET_PROVIDER_ID, ESPNBET_LIVE_PROVIDER_ID,
+    PLAYER_EXPIRATION_TIME, TEAM_EXPIRATION_TIME,
 )
 from common.utils import (
 	normalize_team_name, normalize_market_name, normalize_status_name, create_event_key, 
-	create_market_key, utc_to_cst, generate_data_hash, extract_float, format_odds, get_market_type
+	create_market_key, utc_to_cst, generate_data_hash, format_odds, get_market_type
 )
 from common.exceptions import NormalizationError
 
@@ -114,8 +114,7 @@ class ESPNClient(SportsbookClient):
 
 			try:
 				event_odds = self.parse_event_odds(event_key, event_data)
-				prop_odds = self.parse_player_props(event_key, event_url)
-				odds.extend(event_odds + prop_odds)
+				odds.extend(event_odds)
 			except Exception as e:
 				self.logger.exception(f'{e} occured while scraping odds for {event_key} ({self.league})')
 
@@ -144,8 +143,8 @@ class ESPNClient(SportsbookClient):
 		markets.extend(['spread', 'spread'])
 		outcomes.extend([event['away'], event['home']])
 		lines.extend([
-			extract_float(selections['awayTeamOdds']['current']['pointSpread']['american']),
-			extract_float(selections['homeTeamOdds']['current']['pointSpread']['american'])
+			float(selections['awayTeamOdds']['current']['pointSpread']['american']),
+			float(selections['homeTeamOdds']['current']['pointSpread']['american'])
 		])
 		values.extend([
 			selections['awayTeamOdds']['current']['spread']['value'],
@@ -163,8 +162,8 @@ class ESPNClient(SportsbookClient):
 		markets.extend(['total', 'total'])
 		outcomes.extend(['over', 'under'])
 		lines.extend([
-			extract_float(selections['current']['total']['american']),
-			extract_float(selections['current']['total']['american'])
+			float(selections['current']['total']['american']),
+			float(selections['current']['total']['american'])
 		])
 		values.extend([
 			selections['current']['over']['value'],
@@ -182,6 +181,7 @@ class ESPNClient(SportsbookClient):
 				'outcome': outcomes[i],
 				'line': lines[i],
 				'value': values[i],
+				'team': None,
 				'player': None,
 			}
 
@@ -194,14 +194,16 @@ class ESPNClient(SportsbookClient):
 				self.redis.set(f'{self.name}:hashes:{event_key}:{market_key}:{outcomes[i]}', odds_hash, ex=ODDS_EXPIRATION_TIME)
 				self.logger.info(f'scraped {format_odds(odds_data)} for {event_key} ({self.league})')
 
+		
+		prop_url = selections['propBets']['$ref']
+		prop_odds = self.parse_props(event_key, prop_url)
+		event_odds.extend(prop_odds)
+
 		return event_odds
 
 	
-	def parse_player_props(self, event_key, event_url) -> list:
+	def parse_props(self, event_key, prop_url) -> list:
 		try:
-			event = json.loads(self.redis.get(f'{self.name}:events:{event_key}'))
-			provider_id = ESPNBET_PROVIDER_ID if event['status'] == 'upcoming' else ESPNBET_LIVE_PROVIDER_ID
-			prop_url = event_url + f'/{provider_id}/propBets'
 			prop_data = self.fetch_data(prop_url, params={'limit': 1000})
 			self.logger.info(f'fetched {len(prop_data["items"])} props for {event_key} ({self.league})')
 		except Exception as e:
