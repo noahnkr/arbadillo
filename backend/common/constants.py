@@ -6,6 +6,8 @@ SPORTS = [ 'football', 'basketball', 'baseball', 'soccer', 'hockey', ]
 
 LEAGUES = [ 'nfl', 'nba', 'mlb', 'mls', 'nhl', 'ncaaf', 'ncaab', 'ncaaw', ]
 
+STATUSES = [ 'upcoming', 'active', 'completed' ]
+
 SPORTS_LEAGUES = {
     'football': ['nfl', 'ncaaf',],
     'basketball': ['nba', 'ncaab', 'ncaaw',],
@@ -460,7 +462,6 @@ MARKET_TYPE_ALIASES = {
         'team_first_score',
     }
 }
-
 
 STATUS_ALIASES = {
     'upcoming': ['upcoming', 'scheduled', 'pre'],
