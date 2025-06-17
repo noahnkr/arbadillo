@@ -9,8 +9,10 @@
 
 ## Scraping
 
--   [ ] Incorporate player odds into API client parsing
--   [ ] Normalize missed player prop market names
+-   [x] Incorporate player odds into API client parsing
+-   [x] Normalize missed player prop market names
+-   [ ] Convert yes/no props -> over/under 0.5
+-   [ ] Add status indicator to odds if they got locked
 
 ## Database
 
