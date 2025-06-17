@@ -18,15 +18,6 @@ def clean_str(raw: str) -> str:
     raw = re.sub(r"\s+", " ", raw)
     return raw.strip().lower()
 
-
-def extract_float(raw: str) -> float | None:
-    """Exctracts the float value from collected sportsbook data."""
-    try:
-        match = re.search(r'[-+]?\d*\.\d+|\d+', raw)
-        return float(match.group()) if match else None
-    except Exception:
-        return None
-
 # ---------- Sportsbook Helpers -----------
 
 def create_event_key(league: str, date: str, away:str, home:str) -> str:
@@ -83,7 +74,7 @@ def normalize_team_name(name: str, league: str) -> str:
     for standard, aliases in team_aliases.items():
         if clean_str(name) in map(clean_str, aliases):
             return standard
-    raise NormalizationError(f'Unkown team name `{name}` for league `{league}`')
+    raise NormalizationError(f'Unknown team name `{name}` for league `{league}`')
 
 
 def normalize_market_name(market: str, league: str) -> str:
@@ -91,7 +82,7 @@ def normalize_market_name(market: str, league: str) -> str:
     for standard, aliases in MARKET_ALIASES[league].items():
         if clean_str(market) in map(clean_str, aliases):
             return standard
-    raise NormalizationError(f'Unkown market name `{market}` for league `{league}`')
+    raise NormalizationError(f'Unknown market name `{market}` for league `{league}`')
 
 
 def normalize_status_name(status: str) -> str:
@@ -99,7 +90,7 @@ def normalize_status_name(status: str) -> str:
     for standard, statuses in STATUS_ALIASES.items():
         if clean_str(status) in map(clean_str, statuses):
             return standard
-    raise NormalizationError(f'Unkown status name `{status}`')
+    raise NormalizationError(f'Unknown status name `{status}`')
 
 
 def get_sport_from_league(league: str) -> str:
@@ -125,7 +116,7 @@ def format_odds(odds_data: dict) -> str:
     outcome = odds_data['outcome']
     line = odds_data['line']
     value = decimal_to_american(odds_data['value'])
-    team = odds_data['teeam']
+    team = odds_data['team']
     player = odds_data['player']
     if market_type == 'moneyline':
         odds_str = f'{outcome} {market} ({value})'
