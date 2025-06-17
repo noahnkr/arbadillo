@@ -20,6 +20,10 @@ EVENT_EXPIRATION_TIME = 60 * 60 * 24
 
 ODDS_EXPIRATION_TIME = 60 * 60
 
+PLAYER_EXPIRATION_TIME = 60 * 60 * 24 * 7
+
+TEAM_EXPIRATION_TIME = 60 * 60 * 24 * 7
+
 CLIENT_MAP = {
     'espn': 'scraper.apiclients.espn.ESPNClient',
     'draftkings': 'scraper.apiclients.draftkings.DraftKingsClient',
@@ -335,7 +339,7 @@ NCAA_ALIASES = {
     'washington-state-cougars': ['WSU', 'Washington State', 'Cougars'],
 }
 
-LEAGUE_ALIASES = {
+TEAM_ALIASES = {
     'nfl': NFL_ALIASES, 
     'nba': NBA_ALIASES,
     'mlb': MLB_ALIASES,
@@ -346,11 +350,117 @@ LEAGUE_ALIASES = {
     'ncaaw': NCAA_ALIASES,
 }
 
-MARKET_ALIASES = {
+FOOTBALL_MARKET_ALIASES = {}
+
+BASKETBALL_MARKET_ALIASES = {
+    'player_points': ['Total Points',],
+    'player_rebounds': ['Total Rebounds',],
+    'player_assists': ['Total Assists',],
+    'player_threes': ['Total 3-Point Field Goals',],
+    'player_steals': ['Total Steals',],
+    'player_blocks': ['Total Blocks',],
+    'player_turnovers': ['Total Turnovers',],
+    'player_points_rebounds_assists': ['Total Points, Rebounds, and Assists',],
+    'player_points_rebounds': ['Total Points and Rebounds',],
+    'player_points_assists': ['Total Points and Assists',],
+    'player_assists_rebounds': ['Total Assists and Rebounds'],
+    'player_steals_blocks': ['Total Steals and Blocks',],
+    'player_double_double': ['To Record a Double Double',],
+    'player_triple_double': ['To Record a Triple Double',],
+    'team_points': ['Team Total Points',],
+    'team_threes': ['Team Total 3-Pointers Made',],
+    'team_steals': ['Team Total Steals',],
+    'team_blocks': ['Team Total Blocks',],
+
+}
+
+BASEBALL_MARKET_ALIASES = {
+    'batter_home_runs': ['Total Home Runs', 'Total Home Runs Hit',],
+    'batter_hits': ['Total Hits',],
+    'batter_total_bases': ['Total Bases',],
+    'batter_rbis': ['Total RBIs',],
+    'batter_singles': ['Total Singles Hit',],
+    'batter_runs_scored': ['Total Runs Scored',],
+    'batter_hits_runs_rbis': ['Total Hits + Runs + RBIs',],
+    'batter_stolen_bases': ['Total Stolen Bases',],
+    'pitcher_strikeouts': ['Total Strikeouts',],
+    'pitcher_walks': ['Total Walks Allowed',],
+    'pitcher_hits_allowed': ['Total Hits Allowed',],
+    'pitcher_outs': ['Total Outs Recorded',],
+    'team_runs': ['Team Total Runs',],
+    'team_first_score': ['First Team to Score',],
+}
+
+SOCCER_MARKET_ALIASES = {}
+
+HOCKEY_MARKET_ALIASES = {}
+
+STANDARD_MARKET_ALIASES = {
     'moneyline': ['Moneyline', 'ML', 'Win', 'To Win', 'Team to Win', 'Match Winner', 'Winner', 'H2H'],
     'spread': ['Spread', 'Point Spread', 'Run Line', 'Puck Line', 'Handicap', 'Line', 'ATS'],
     'total': ['Total', 'Game Total', 'Total Points', 'O/U', 'Over/Under', 'Over', 'Under', 'Match Total', 'Points Total', 'Goals Total', 'Runs Total'],
+    'moneyline_h1': ['1st Half Moneyline',],
+    'spread_h1': ['1st Half Spread',],
+    'total_h1': ['1st Half Total',],
+    'moneyline_h2': ['2nd Half Moneyline',],
+    'spread_h2': ['2nd Half Spread',],
+    'total_h2': ['2nd Half Total',],
+    'moneyline_q1': ['1st Quarter Moneyline',],
+    'spread_q1': ['1st Quarter Spread',],
+    'total_q1': ['1st Quarter Total',],
+    'moneyline_q2': ['2nd Quarter Moneyline',],
+    'spread_q2': ['2nd Quarter Spread',],
+    'total_q2': ['2nd Quarter Total',],
+    'moneyline_q3': ['3rd Quarter Moneyline',],
+    'spread_q3': ['3rd Quarter Spread',],
+    'total_q3': ['3rd Quarter Total',],
+    'moneyline_q4': ['4th Quarter Moneyline',],
+    'spread_q4': ['4th Quarter Spread',],
+    'total_q4': ['4th Quarter Total',],
 }
+
+MARKET_ALIASES = {
+    'nfl': {**FOOTBALL_MARKET_ALIASES, **STANDARD_MARKET_ALIASES},
+    'nba': {**BASKETBALL_MARKET_ALIASES, **STANDARD_MARKET_ALIASES},
+    'mlb': {**BASEBALL_MARKET_ALIASES, **STANDARD_MARKET_ALIASES},
+    'mls': {**SOCCER_MARKET_ALIASES, **STANDARD_MARKET_ALIASES},
+    'nhl': {**HOCKEY_MARKET_ALIASES, **STANDARD_MARKET_ALIASES},
+    'ncaaf': {**FOOTBALL_MARKET_ALIASES, **STANDARD_MARKET_ALIASES},
+    'ncaab': {**BASKETBALL_MARKET_ALIASES, **STANDARD_MARKET_ALIASES},
+    'ncaaw': {**BASKETBALL_MARKET_ALIASES, **STANDARD_MARKET_ALIASES},
+}
+
+MARKET_TYPES = [ 'moneyline', 'spread', 'total', 'over_under', 'yes_no', ]
+
+MARKET_TYPE_ALIASES = {
+    'moneyline': {
+        'moneyline', 'moneyline_h1', 'moneyline_h2',
+        'moneyline_q1', 'moneyline_q2', 'moneyline_q3', 'moneyline_q4'
+    },
+    'spread': {
+        'spread', 'spread_h1', 'spread_h2',
+        'spread_q1', 'spread_q2', 'spread_q3', 'spread_q4'
+    },
+    'total': {
+        'total', 'total_h1', 'total_h2',
+        'total_q1', 'total_q2', 'total_q3', 'total_q4'
+    },
+    'over_under': {
+        'player_points', 'player_rebounds', 'player_assists', 'player_threes',
+        'player_steals', 'player_blocks', 'player_turnovers',
+        'player_points_rebounds_assists', 'player_points_rebounds',
+        'player_points_assists', 'player_assists_rebounds', 'player_steals_blocks',
+        'team_points', 'team_threes', 'team_steals', 'team_blocks',
+        'batter_home_runs', 'batter_hits', 'batter_total_bases', 'batter_rbis',
+        'batter_singles', 'batter_runs_scored', 'batter_stolen_bases', 'batter_hits_runs_rbis', 
+        'pitcher_strikeouts', 'pitcher_walks', 'pitcher_hits_allowed', 'pitcher_outs', 'team_runs', 
+    },
+    'yes_no': {
+        'player_double_double', 'player_triple_double',
+        'team_first_score',
+    }
+}
+
 
 STATUS_ALIASES = {
     'upcoming': ['upcoming', 'scheduled', 'pre'],

@@ -5,7 +5,7 @@ from scraper.tasks import batch_upsert_odds
 from common.constants import FANDUEL_URLS, EVENT_EXPIRATION_TIME, ODDS_EXPIRATION_TIME
 from common.utils import (
     normalize_team_name, normalize_market_name, create_event_key, 
-	generate_data_hash, create_market_key, utc_to_cst, decimal_to_american,
+	generate_data_hash, create_market_key, utc_to_cst, format_odds,
 )
 from common.exceptions import NormalizationError
 from common.playwright_manager import PlaywrightSessionManager
@@ -97,7 +97,7 @@ class FanDuelClient(SportsbookClient):
                     continue
 
                 event_key = self.redis.get(f'{self.name}:events:{event_id}')
-                market_name = normalize_market_name(market['marketName'])
+                market_name = normalize_market_name(market['marketName'], self.league)
                 markets, outcomes, lines, values = [], [], [], []
 
                 if market_name == 'moneyline':
@@ -150,8 +150,8 @@ class FanDuelClient(SportsbookClient):
                         'outcome': outcomes[i],
                         'line': lines[i],
                         'value': values[i],
+                        'team': None,
                         'player': None,
-                        'prop': None,
                     }
 
                     odds_hash = generate_data_hash(odds_data)
@@ -161,7 +161,7 @@ class FanDuelClient(SportsbookClient):
                         odds.append(odds_data)
                         self.redis.set(f'{self.name}:odds:{event_key}:{market_key}:{outcomes[i]}', json.dumps(odds_data), ex=ODDS_EXPIRATION_TIME)
                         self.redis.set(f'{self.name}:hashes:{event_key}:{market_key}:{outcomes[i]}', odds_hash, ex=ODDS_EXPIRATION_TIME)
-                        self.logger.info(f'scraped {market_key} ({decimal_to_american(values[i])}) for {event_key}')
+                        self.logger.info(f'scraped {format_odds(odds_data)} for {event_key}')
 
             except NormalizationError as e:
                 self.logger.warning(f'{e} ({self.league})')

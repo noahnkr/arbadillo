@@ -4,7 +4,7 @@ from scraper.tasks import batch_upsert_odds
 from common.constants import DRAFTKINGS_URLS, EVENT_EXPIRATION_TIME, ODDS_EXPIRATION_TIME
 from common.utils import (
 	normalize_team_name, normalize_market_name, create_event_key, 
-	generate_data_hash, create_market_key, utc_to_cst, decimal_to_american,
+	generate_data_hash, create_market_key, utc_to_cst, format_odds,
 )
 from common.exceptions import NormalizationError
 
@@ -71,7 +71,7 @@ class DraftKingsClient(SportsbookClient):
 			try:
 				market_id = market['id']
 				event_id = market['eventId']
-				market = normalize_market_name(market['name'])
+				market = normalize_market_name(market['name'], self.league)
 
 				self.redis.set(
 					f'{self.name}:markets:{market_id}',
@@ -122,8 +122,8 @@ class DraftKingsClient(SportsbookClient):
 					'outcome': outcome,
 					'line': line,
 					'value': value,
+					'team': None,
 					'player': None,
-					'prop': None,
 				}
 
 				odds_hash = generate_data_hash(odds_data)
@@ -133,7 +133,7 @@ class DraftKingsClient(SportsbookClient):
 					odds.append(odds_data)
 					self.redis.set(f'{self.name}:odds:{event_key}:{market_key}:{outcome}', json.dumps(odds_data), ex=ODDS_EXPIRATION_TIME)
 					self.redis.set(f'{self.name}:hashes:{event_key}:{market_key}:{outcome}', odds_hash, ex=ODDS_EXPIRATION_TIME)
-					self.logger.info(f'scraped {market_key} [{decimal_to_american(value)}] for {event_key}')
+					self.logger.info(f'scraped {format_odds(odds_data)} for {event_key}')
 
 			except NormalizationError as e:
 				self.logger.warning(f'{e} ({self.league})')

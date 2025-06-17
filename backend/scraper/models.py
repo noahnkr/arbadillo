@@ -19,8 +19,8 @@ class Odds(models.Model):
     outcome = models.CharField(max_length=100)
     line = models.FloatField(null=True, blank=True)
     value = models.FloatField()
+    team = models.CharField(max_length=100, null=True, blank=True)
     player = models.CharField(max_length=100, null=True, blank=True)
-    prop = models.CharField(max_length=100, null=True, blank=True)
     collected_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

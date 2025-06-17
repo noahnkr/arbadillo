@@ -3,10 +3,13 @@ from datetime import datetime, timedelta
 from dateutil import tz
 from .base import SportsbookClient
 from scraper.tasks import batch_upsert_events, batch_upsert_odds
-from common.constants import ESPN_URLS, ESPNBET_URLS, EVENT_EXPIRATION_TIME, ODDS_EXPIRATION_TIME
+from common.constants import (
+    ESPN_URLS, ESPNBET_URLS, EVENT_EXPIRATION_TIME, ODDS_EXPIRATION_TIME,
+    PLAYER_EXPIRATION_TIME, TEAM_EXPIRATION_TIME,
+)
 from common.utils import (
-	normalize_team_name, normalize_status_name, create_event_key, create_market_key, 
-	utc_to_cst, generate_data_hash, extract_float, decimal_to_american,
+	normalize_team_name, normalize_market_name, normalize_status_name, create_event_key, 
+	create_market_key, utc_to_cst, generate_data_hash, format_odds, get_market_type
 )
 from common.exceptions import NormalizationError
 
@@ -72,7 +75,7 @@ class ESPNClient(SportsbookClient):
 					self.redis.set(f'{self.name}:events:{event_key}', json.dumps(event_data), ex=EVENT_EXPIRATION_TIME)
 					self.redis.set(f'{self.name}:hashes:{event_key}', event_hash, ex=EVENT_EXPIRATION_TIME)
 					self.redis.set(f'{self.name}:keys:{event_id}', event_key, ex=EVENT_EXPIRATION_TIME)
-					self.logger.info(f'scraped {event_key}')
+					self.logger.info(f'scraped {event_key} ({self.league})')
 
 			except NormalizationError as e:
 				self.logger.warning(f'{e} ({self.league})')
@@ -98,91 +101,204 @@ class ESPNClient(SportsbookClient):
 		odds = []
 		for e_id in event_ids:
 			try:
-				event_url = url + f'/{e_id}/competitions/{e_id}/odds'
 				event_key = self.redis.get(f'{self.name}:keys:{e_id}')
 				if not event_key:
 					continue
+
+				event_url = url + f'/{e_id}/competitions/{e_id}/odds'
 				event_data = self.fetch_data(event_url)
 				self.logger.info(f'fetched {event_key} odds ({self.league})')
 			except Exception as e:
-				self.logger.exception(f'{e} occured while yielding schedule request to {url} ({self.league})')
+				self.logger.exception(f'{e} occured while yielding odds request to {event_url} ({self.league})')
 				continue
 
 			try:
-				event = json.loads(self.redis.get(f'{self.name}:events:{event_key}'))
-				providers = event_data['items']
-				
-				if event['status'] == 'upcoming' and len(providers) == 1:
-					selections = providers[0]
-				elif len(providers) > 1:
-					selections  = providers	[1]
-				else:
-					self.logger.info(f'no valid odds provider for {event_key} ({self.league})')
-					continue
-
-				markets, outcomes, lines, values = [], [], [], []
-
-				# Spread
-				markets.extend(['spread', 'spread'])
-				outcomes.extend([event['away'], event['home']])
-				lines.extend([
-					extract_float(selections['awayTeamOdds']['current']['pointSpread']['american']),
-					extract_float(selections['homeTeamOdds']['current']['pointSpread']['american'])
-				])
-				values.extend([
-					selections['awayTeamOdds']['current']['spread']['value'],
-					selections['homeTeamOdds']['current']['spread']['value']
-				])
-				# Moneyline
-				markets.extend(['moneyline', 'moneyline'])
-				outcomes.extend([event['away'], event['home']])
-				lines.extend([None, None])
-				values.extend([
-					selections['awayTeamOdds']['current']['moneyLine']['value'],
-					selections['homeTeamOdds']['current']['moneyLine']['value']
-				])
-				# Total
-				markets.extend(['total', 'total'])
-				outcomes.extend(['over', 'under'])
-				lines.extend([
-					extract_float(selections['current']['total']['american']),
-					extract_float(selections['current']['total']['american'])
-				])
-				values.extend([
-					selections['current']['over']['value'],
-					selections['current']['under']['value']
-				])
-
-				for i in range(len(markets)):
-					market_key = create_market_key(markets[i], lines[i])
-					odds_data = {
-						'event_key': event_key,
-						'market_key': market_key,
-						'sportsbook': self.name,
-						'market': markets[i],
-						'outcome': outcomes[i],
-						'line': lines[i],
-						'value': values[i],
-						'player': None,
-						'prop': None,
-					}
-
-					odds_hash = generate_data_hash(odds_data)
-					prev_hash = self.redis.get(f'{self.name}:hashes:{event_key}:{market_key}:{outcomes[i]}')
-					if prev_hash != odds_hash:
-						# Odds data have changed, cache odds and update DB
-						odds.append(odds_data)
-						self.redis.set(f'{self.name}:odds:{event_key}:{market_key}:{outcomes[i]}', json.dumps(odds_data), ex=ODDS_EXPIRATION_TIME)
-						self.redis.set(f'{self.name}:hashes:{event_key}:{market_key}:{outcomes[i]}', odds_hash, ex=ODDS_EXPIRATION_TIME)
-						self.logger.info(f'scraped {market_key} [{decimal_to_american(values[i])}] for {event_key}')
-
-			except NormalizationError as e:
-				self.logger.warning(f'{e}')
+				event_odds = self.parse_event_odds(event_key, event_data)
+				odds.extend(event_odds)
 			except Exception as e:
-				self.logger.exception(f'{e} occured while scraping odds ({self.league})')
+				self.logger.exception(f'{e} occured while scraping odds for {event_key} ({self.league})')
 
 		if not odds:
 			self.logger.info(f'no new odds to upsert ({self.league})')
 		else:
 			self.logger.info(f'upserting {len(odds)} odds ({self.league})')
 			batch_upsert_odds.delay(odds)
+
+
+	def parse_event_odds(self, event_key, event_data) -> list:
+		event = json.loads(self.redis.get(f'{self.name}:events:{event_key}'))
+		providers = event_data['items']
+		
+		if event['status'] == 'upcoming' and len(providers) == 1:
+			selections = providers[0]
+		elif len(providers) > 1:
+			selections  = providers	[1]
+		else:
+			self.logger.info(f'no valid odds provider for {event_key} ({self.league})')
+			return []
+
+		markets, outcomes, lines, values = [], [], [], []
+
+		# Spread
+		markets.extend(['spread', 'spread'])
+		outcomes.extend([event['away'], event['home']])
+		lines.extend([
+			float(selections['awayTeamOdds']['current']['pointSpread']['american']),
+			float(selections['homeTeamOdds']['current']['pointSpread']['american'])
+		])
+		values.extend([
+			selections['awayTeamOdds']['current']['spread']['value'],
+			selections['homeTeamOdds']['current']['spread']['value']
+		])
+		# Moneyline
+		markets.extend(['moneyline', 'moneyline'])
+		outcomes.extend([event['away'], event['home']])
+		lines.extend([None, None])
+		values.extend([
+			selections['awayTeamOdds']['current']['moneyLine']['value'],
+			selections['homeTeamOdds']['current']['moneyLine']['value']
+		])
+		# Total
+		markets.extend(['total', 'total'])
+		outcomes.extend(['over', 'under'])
+		lines.extend([
+			float(selections['current']['total']['american']),
+			float(selections['current']['total']['american'])
+		])
+		values.extend([
+			selections['current']['over']['value'],
+			selections['current']['under']['value']
+		])
+
+		event_odds = []
+		for i in range(len(markets)):
+			market_key = create_market_key(markets[i], lines[i])
+			odds_data = {
+				'event_key': event_key,
+				'market_key': market_key,
+				'sportsbook': self.name,
+				'market': markets[i],
+				'outcome': outcomes[i],
+				'line': lines[i],
+				'value': values[i],
+				'team': None,
+				'player': None,
+			}
+
+			odds_hash = generate_data_hash(odds_data)
+			prev_hash = self.redis.get(f'{self.name}:hashes:{event_key}:{market_key}:{outcomes[i]}')
+			if prev_hash != odds_hash:
+				# Odds data have changed, cache odds and update DB
+				event_odds.append(odds_data)
+				self.redis.set(f'{self.name}:odds:{event_key}:{market_key}:{outcomes[i]}', json.dumps(odds_data), ex=ODDS_EXPIRATION_TIME)
+				self.redis.set(f'{self.name}:hashes:{event_key}:{market_key}:{outcomes[i]}', odds_hash, ex=ODDS_EXPIRATION_TIME)
+				self.logger.info(f'scraped {format_odds(odds_data)} for {event_key} ({self.league})')
+
+		
+		prop_url = selections['propBets']['$ref']
+		prop_odds = self.parse_props(event_key, prop_url)
+		event_odds.extend(prop_odds)
+
+		return event_odds
+
+	
+	def parse_props(self, event_key, prop_url) -> list:
+		try:
+			prop_data = self.fetch_data(prop_url, params={'limit': 1000})
+			self.logger.info(f'fetched {len(prop_data["items"])} props for {event_key} ({self.league})')
+		except Exception as e:
+			self.logger.exception(f'{e} occured while yielding prop request to {prop_url} ({self.league})')
+			return []
+
+		prop_odds = []
+		for prop in prop_data['items']:
+			try:
+				if 'athlete' in prop:
+					player_url = prop['athlete']['$ref']
+					player_id = player_url.split('/athletes/')[-1].split('?')[0]
+					team = None
+					player = self.redis.get(f'{self.name}:players:{player_id}')
+					# Cache player name if it doesn't exist yet
+					if not player:
+						player_data = self.fetch_data(player_url)
+						player = player_data['fullName']
+						self.redis.set(f'{self.name}:players:{player_id}', player, ex=PLAYER_EXPIRATION_TIME)
+						self.logger.info(f'scraped player `{player}` ({self.league})')
+				elif 'team' in prop:
+					team_url = prop['team']['$ref']
+					team_id = team_url.split('/teams/')[-1].split('?')[0]
+					player = None
+					team = self.redis.get(f'{self.name}:teams:{team_id}')
+					# Cache player name if it doesn't exist yet
+					if not team:
+						team_data = self.fetch_data(team_url)
+						team = normalize_team_name(team_data['displayName'], self.league)
+						self.redis.set(f'{self.name}:teams:{team_id}', team, ex=TEAM_EXPIRATION_TIME)
+						self.logger.info(f'scraped team `{team}` ({self.league})')
+				else:
+					self.logger.warning(f'missing athlete/team prop data for {event_key} ({self.league})')
+					continue
+
+				market = normalize_market_name(prop['type']['name'], self.league)
+				market_type = get_market_type(market)
+
+				line = None
+				outcome = None
+				value = None
+
+				if market_type == 'moneyline':
+					outcome = team
+					team = None # redundant
+					value = float(prop['odds']['decimal']['value'])
+				elif market_type == 'spread':
+					line = float(prop['odds']['total']['value'])
+					outcome = team
+					team = None # redundant
+					value = float(prop['odds']['decimal']['value'])
+				elif market_type == 'yes_no':
+					outcome = 'yes' # default value
+					value = float(prop['odds']['decimal']['value'])
+				elif market_type in ['total', 'over_under']:
+					if 'current' not in prop or not prop.get('current', {}):
+						self.logger.warning(f'missing over/under value for {market_type} market ({self.league})')
+						continue # Over/Under values not included
+					found = False
+					for side in ['over', 'under']:
+						if side in prop['current']:
+							line = float(prop['current']['target']['value'])
+							outcome = side
+							value = float(prop['current'][side]['value'])
+							found = True
+							break
+					if not found:
+						continue
+
+				market_key = create_market_key(market, line, team, player)
+
+				odds_data = {
+					'event_key': event_key,
+					'market_key': market_key,
+					'sportsbook': self.name,
+					'market': market,
+					'outcome': outcome,
+					'line': line,
+					'value': value,
+					'team': team,
+					'player': player,
+				}
+
+				odds_hash = generate_data_hash(odds_data)
+				prev_hash = self.redis.get(f'{self.name}:hashes:{event_key}:{market_key}:{outcome}')
+				if prev_hash != odds_hash:
+					# Odds data have changed, cache odds and update DB
+					prop_odds.append(odds_data)
+					self.redis.set(f'{self.name}:odds:{event_key}:{market_key}:{outcome}', json.dumps(odds_data), ex=ODDS_EXPIRATION_TIME)
+					self.redis.set(f'{self.name}:hashes:{event_key}:{market_key}:{outcome}', odds_hash, ex=ODDS_EXPIRATION_TIME)
+					self.logger.info(f'scraped {format_odds(odds_data)} for {event_key} ({self.league})')
+
+			except NormalizationError as e:
+				self.logger.warning(f'{e}')
+			except Exception as e:
+				self.logger.exception(f'{e} occured while scraping props for {event_key} ({self.league})')
+		
+		return prop_odds
