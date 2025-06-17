@@ -24,9 +24,6 @@ PLAYER_EXPIRATION_TIME = 60 * 60 * 24 * 7
 
 TEAM_EXPIRATION_TIME = 60 * 60 * 24 * 7
 
-ESPNBET_PROVIDER_ID = 58
-ESPNBET_LIVE_PROVIDER_ID = 59
-
 CLIENT_MAP = {
     'espn': 'scraper.apiclients.espn.ESPNClient',
     'draftkings': 'scraper.apiclients.draftkings.DraftKingsClient',
@@ -382,7 +379,14 @@ BASEBALL_MARKET_ALIASES = {
     'batter_hits': ['Total Hits',],
     'batter_total_bases': ['Total Bases',],
     'batter_rbis': ['Total RBIs',],
+    'batter_singles': ['Total Singles Hit',],
+    'batter_runs_scored': ['Total Runs Scored',],
+    'batter_hits_runs_rbis': ['Total Hits + Runs + RBIs',],
+    'batter_stolen_bases': ['Total Stolen Bases',],
     'pitcher_strikeouts': ['Total Strikeouts',],
+    'pitcher_walks': ['Total Walks Allowed',],
+    'pitcher_hits_allowed': ['Total Hits Allowed',],
+    'pitcher_outs': ['Total Outs Recorded',],
     'team_runs': ['Team Total Runs',],
     'team_first_score': ['First Team to Score',],
 }
@@ -448,7 +452,8 @@ MARKET_TYPE_ALIASES = {
         'player_points_assists', 'player_assists_rebounds', 'player_steals_blocks',
         'team_points', 'team_threes', 'team_steals', 'team_blocks',
         'batter_home_runs', 'batter_hits', 'batter_total_bases', 'batter_rbis',
-        'pitcher_strikeouts', 'team_runs'
+        'batter_singles', 'batter_runs_scored', 'batter_stolen_bases', 'batter_hits_runs_rbis', 
+        'pitcher_strikeouts', 'pitcher_walks', 'pitcher_hits_allowed', 'pitcher_outs', 'team_runs', 
     },
     'yes_no': {
         'player_double_double', 'player_triple_double',
