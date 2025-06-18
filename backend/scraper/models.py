@@ -6,8 +6,14 @@ class Event(models.Model):
     start_time = models.DateTimeField()
     away = models.CharField(max_length=100)
     home = models.CharField(max_length=100)
-    status = models.CharField(max_length=20)
     collected_at = models.DateTimeField(auto_now_add=True)
+
+    event_status_choices = {
+        'upcoming': 'upcoming',
+        'active': 'active',
+        'concluded': 'concluded',
+    }
+    status = models.CharField(max_length=20, choices=event_status_choices)
 
 
 class Odds(models.Model):
@@ -22,6 +28,12 @@ class Odds(models.Model):
     team = models.CharField(max_length=100, null=True, blank=True)
     player = models.CharField(max_length=100, null=True, blank=True)
     collected_at = models.DateTimeField(auto_now_add=True)
+ 
+    odds_status_choices = {
+        'active': 'active',
+        'suspended': 'suspended'
+    }
+    status = models.CharField(choices=odds_status_choices)
 
     class Meta:
         unique_together = ('event_key', 'market_key', 'sportsbook', 'outcome')
