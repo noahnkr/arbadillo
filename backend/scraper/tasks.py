@@ -1,7 +1,7 @@
 import logging
 from celery import shared_task, group, chord
 from django.utils.timezone import now
-from common.constants.sportsbook import LEAGUES, CLIENT_SCRAPERS
+from common.constants.sportsbook import LEAGUES, SPORTSBOOK_CLIENTS
 from common.utils import get_client
 from .models import Event, Odds
 
@@ -53,7 +53,7 @@ def collect_initial_sportsbook_schedule():
 	chord(
 		group(
 			launch_client.s(sbook, mode='schedule', league=lg)
-			for sbook in CLIENT_SCRAPERS if sbook != 'espn'
+			for sbook in SPORTSBOOK_CLIENTS
 			for lg in LEAGUES
 		),
 		collect_initial_sportsbook_odds.si()
@@ -88,7 +88,7 @@ def collect_sportsbook_schedule():
 	logger.info('collecting sportsbook events...')
 	group(
 		launch_client.s(sbook, mode='schedule', league=lg)
-		for sbook in CLIENT_SCRAPERS if sbook != 'espn'
+		for sbook in SPORTSBOOK_CLIENTS
 		for lg in LEAGUES
 	).apply_async()
 
@@ -97,17 +97,18 @@ def collect_sportsbook_schedule():
 def collect_odds(mode, status):
 	"""
 	Collects odds or props from all sportsbooks for all leagues for the given event status.
-	Args:
-		- mode: either `primary` or `props`, props for a specific event have their own respective API url, which 
-		  means their scraping pipeline should be seperated from the popular markets which are usually batched
-		  by league. This improves efficiency of scraping while still utilizing concurrency.
-		- status: either `upcoming` o `active`, since pre-match odds change less frequently than live
-		  odds, we should collect them on different intervals.
+
+	Parameters:
+		mode (str): either `primary` or `props`, props for a specific event have their own respective API url, which 
+			means their scraping pipeline should be seperated from the popular markets which are usually batched
+			by league. This improves efficiency of scraping while still utilizing concurrency.
+		status (str): either `upcoming` o `active`, since pre-match odds change less frequently than live
+			odds, we should collect them on different intervals.
 	"""
 	logger.info(f'collecting sportsbook {mode} ({status})...')
 	group(
 		launch_client.s(sbook, mode=mode, league=lg, status=status)
-		for sbook in CLIENT_SCRAPERS
+		for sbook in SPORTSBOOK_CLIENTS
 		for lg in LEAGUES
 	).apply_async()
 
