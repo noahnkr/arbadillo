@@ -88,13 +88,13 @@ def normalize_team_name(name: str, league: str) -> str:
         raise NormalizationError(f'Unknown team name `{name}` for league `{league}`')
 
 
-def normalize_market_name(market: str, league: str) -> tuple[str, str, float | None, str | None]:
+def normalize_market_name(market: str, league: str) -> tuple[str, str, str, float | None, str | None]:
     """
     Normalize a raw sportsbook market name into a standardized canonical format.
 
     This function attempts to identify the standardized market key (e.g., 'player_points'),
-    the associated market type (e.g., 'over_under'), and any applicable line value 
-    (e.g., 9.5 from 'To Score 10+ Points') and its outcome (e.g., yes/no, over/under)
+    the associated market type (e.g., 'over_under'), its scope ('team' or 'player'), and any 
+    applicable line value (e.g., 9.5 from 'To Score 10+ Points') and its outcome (e.g., yes/no, over/under).
 
     Parameters:
         market (str): The raw market name string from the sportsbook (e.g., "To Record 2+ Hits").
@@ -104,6 +104,7 @@ def normalize_market_name(market: str, league: str) -> tuple[str, str, float | N
         tuple[str, str, float | None]: A tuple of (market_name, market_type, line), where:
             - market_name: standardized slug identifier (e.g., 'player_points')
             - market_type: general market category (e.g., 'over_under', 'moneyline', 'yes_no')
+            - scope: the scope of the market (e.g., 'player')
             - line: float line value if extracted (e.g., 1.5), otherwise None
             - outcome: outcome of the prop if extracted (e.g., 'over'), otherwise None
 
@@ -169,6 +170,15 @@ def normalize_market_name(market: str, league: str) -> tuple[str, str, float | N
     raise NormalizationError(f'Unknown market name `{market}` for league `{league}`')
 
 
+def get_market_type(market: str, league: str) -> str:
+    """Gets the market type from a market and league name."""
+    key = (league, market)
+    if key not in REVERSE_MARKET_LOOKUP:
+        raise NormalizationError(f'Unknown market name `{market}` for league `{league}`')
+    _, market_type, _ = REVERSE_MARKET_LOOKUP[key]
+    return market_type
+
+
 def normalize_status_name(status: str, event: bool) -> str:
     """Normalizes a sportbook's event status to a standard format."""
     status_aliases = EVENT_STATUS_ALIASES if event else ODDS_STATUS_ALIASES
@@ -186,9 +196,11 @@ def get_sport_from_league(league: str) -> str:
     raise NormalizationError(f'Unknown league `{league}`')
 
 
-def format_odds(odds_data: dict, market_type: str) -> str:
+def format_odds(odds_data: dict) -> str:
     """Formats odds data into a readable string."""
     market = odds_data['market']
+    league = odds_data['event_key'].split(':')[0]
+    market_type = get_market_type(market, league)
     outcome = odds_data['outcome']
     line = odds_data['line']
     value = decimal_to_american(odds_data['value'])
