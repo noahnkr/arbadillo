@@ -111,19 +111,19 @@ class FanDuelClient(SportsbookClient):
                 if market_name not in PRIMARY_MARKETS:
                     continue
 
-                runner_odds = self.parse_runners(market, event_key, market_name, market_type, scope, line, outcome)
+                primary_odds = self.parse_runners(market, event_key, market_name, market_type, scope, line, outcome)
 
-                for odds_data in runner_odds:
-                    odds_hash = generate_data_hash(odds_data)
-                    redis_key = f'{self.name}:odds:{event_key}:{odds_data["market_key"]}:{odds_data["outcome"]}'
-                    redis_hash_key = f'{self.name}:hashes:{event_key}:{odds_data["market_key"]}:{odds_data["outcome"]}'
+                for primary_data in primary_odds:
+                    primary_hash = generate_data_hash(primary_data)
+                    redis_key = f'{self.name}:odds:{event_key}:{primary_data["market_key"]}:{primary_data["outcome"]}'
+                    redis_hash_key = f'{self.name}:hashes:{event_key}:{primary_data["market_key"]}:{primary_data["outcome"]}'
                     prev_hash = self.redis.get(redis_hash_key)
 
-                    if prev_hash != odds_hash:
-                        primary.append(odds_data)
-                        self.redis.set(redis_key, json.dumps(odds_data), ex=ODDS_EXPIRATION_TIME)
-                        self.redis.set(redis_hash_key, odds_hash, ex=ODDS_EXPIRATION_TIME)
-                        self.logger.info(f'scraped {format_odds(odds_data, odds_data["market"])} for {event_key}')
+                    if prev_hash != primary_hash:
+                        primary.append(primary_data)
+                        self.redis.set(redis_key, json.dumps(primary_data), ex=ODDS_EXPIRATION_TIME)
+                        self.redis.set(redis_hash_key, primary_hash, ex=ODDS_EXPIRATION_TIME)
+                        self.logger.info(f'scraped {format_odds(primary_data)} for {event_key}')
 
             except NormalizationError as e:
                 self.logger.warning(f'{e} ({self.league})')
@@ -140,10 +140,10 @@ class FanDuelClient(SportsbookClient):
     def parse_props(self, status):
         url = FANDUEL_URLS['event']
         self.logger.info(f'starting props request ({self.league})')
-        keys = self.redis.smembers(f'espn:events:{status}')
+        status_keys = self.redis.smembers(f'espn:events:{status}')
 
         props = []
-        for event_key in keys:
+        for event_key in status_keys:
             event_id = self.redis.get(f'{self.name}:ids:{event_key}')
             if not event_id:
                 self.logger.warning(f'unknown event id for {event_key} ({self.league})')
@@ -167,9 +167,23 @@ class FanDuelClient(SportsbookClient):
                 continue
             
             try:
-                props.extend(self.parse_event_props(event_key, prop_data))
+                event_props = self.parse_event_props(event_key, prop_data)
+                for prop_data in event_props:
+                    prop_hash = generate_data_hash(prop_data)
+                    redis_key = f'{self.name}:odds:{event_key}:{prop_data["market_key"]}:{prop_data["outcome"]}'
+                    redis_hash_key = f'{self.name}:hashes:{event_key}:{prop_data["market_key"]}:{prop_data["outcome"]}'
+                    prev_hash = self.redis.get(redis_hash_key)
+                    
+                    if prev_hash != prop_hash:
+                        props.append(prop_data)
+                        self.redis.set(redis_key, json.dumps(prop_data), ex=ODDS_EXPIRATION_TIME)
+                        self.redis.set(redis_hash_key, prop_hash, ex=ODDS_EXPIRATION_TIME)
+                        self.logger.info(f'scraped {format_odds(prop_data)}')
+
+            except NormalizationError as e:
+                self.logger.warning(f'{e} ({self.league})')
             except Exception as e:
-                self.logger.exception(f'{e} occured while scraping props for {event_key} ({self.league})')
+                self.logger.exception(f'{e} occured while scraping props ({self.league})')
                 
         if not props:
             self.logger.info(f'no new props to upsert ({self.league})')
