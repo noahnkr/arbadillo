@@ -1,7 +1,8 @@
 import json
 from .base import SportsbookClient
 from scraper.tasks import batch_upsert_odds
-from common.constants import DRAFTKINGS_URLS, EVENT_EXPIRATION_TIME, ODDS_EXPIRATION_TIME
+from common.constants.urls import DRAFTKINGS_URLS
+from common.constants.sportsbook import EVENT_EXPIRATION_TIME, ODDS_EXPIRATION_TIME
 from common.utils import (
 	normalize_team_name, normalize_market_name, create_event_key, 
 	generate_data_hash, create_market_key, utc_to_cst, format_odds,
@@ -53,7 +54,7 @@ class DraftKingsClient(SportsbookClient):
 				continue
 
 		
-	def parse_odds(self):
+	def parse_primary_odds(self, status):
 		url = DRAFTKINGS_URLS[self.league]
 		if not url:
 			self.logger.warning(f'odds url not found ({self.league})')
@@ -71,7 +72,7 @@ class DraftKingsClient(SportsbookClient):
 			try:
 				market_id = market['id']
 				event_id = market['eventId']
-				market = normalize_market_name(market['name'], self.league)
+				market, market_type, _ = normalize_market_name(market['name'], self.league)
 
 				self.redis.set(
 					f'{self.name}:markets:{market_id}',

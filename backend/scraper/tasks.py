@@ -1,7 +1,7 @@
 import logging
 from celery import shared_task, group, chord
 from django.utils.timezone import now
-from common.constants import LEAGUES, CLIENT_SCRAPERS
+from common.constants.sportsbook import LEAGUES, CLIENT_SCRAPERS
 from common.utils import get_client
 from .models import Event, Odds
 
@@ -12,12 +12,12 @@ def launch_client(client_name, mode, league, status=None):
 	"""
 	Launches a client scraper to parse the upcoming or active schedule, odds, or props data for a given league.
 	"""
-	logger.info(f'launching {mode} client: {client_name} ({league})...')
+	logger.info(f'launching {mode} client `{client_name}` ({league})...')
 	client = get_client(client_name, league)
 	if mode == 'schedule':
 		client.parse_schedule()
-	elif mode == 'odds':
-		client.parse_odds(status)
+	elif mode == 'primary':
+		client.parse_primary_odds(status)
 	elif mode == 'props':
 		client.parse_props(status)
 	else:
@@ -39,12 +39,12 @@ def run_initial_scrape():
 			launch_client.s('espn', mode='schedule', league=lg)
 			for lg in LEAGUES
 		),
-		collect_initial_sportsbook_events.si()
+		collect_initial_sportsbook_schedule.si()
 	).apply_async()
 
 
 @shared_task(queue='scraping')
-def collect_initial_sportsbook_events():
+def collect_initial_sportsbook_schedule():
 	"""
     Collects events from all sportsbooks except ESPN.
     This task is triggered after ESPN events are collected.
@@ -68,18 +68,37 @@ def collect_initial_sportsbook_odds():
 	"""
 	logger.info(f'collecting initial sportsbook odds...')
 	group(
-		collect_sportsbook_odds.s(mode=mode, status=status)
-		for mode in ['odds', 'props']
+		collect_odds.s(mode=mode, status=status)
+		for mode in ['primary', 'props']
 		for status in ['upcoming', 'active']
 	).apply_async()
 
 
 @shared_task(queue='scraping')
-def collect_sportsbook_odds(mode, status):
+def collect_espn_schedule():
+	logger.info('collecting ESPN events...')
+	group(
+		launch_client.s('espn', mode='schedule', league=lg)
+		for lg in LEAGUES
+	).apply_async()
+
+
+@shared_task(queue='scraping')
+def collect_sportsbook_schedule():
+	logger.info('collecting sportsbook events...')
+	group(
+		launch_client.s(sbook, mode='schedule', league=lg)
+		for sbook in CLIENT_SCRAPERS if sbook != 'espn'
+		for lg in LEAGUES
+	).apply_async()
+
+
+@shared_task(queue='scraping')
+def collect_odds(mode, status):
 	"""
 	Collects odds or props from all sportsbooks for all leagues for the given event status.
 	Args:
-		- mode: either `odds` or `props`. Props for a specific event have their own respective API url, which 
+		- mode: either `primary` or `props`, props for a specific event have their own respective API url, which 
 		  means their scraping pipeline should be seperated from the popular markets which are usually batched
 		  by league. This improves efficiency of scraping while still utilizing concurrency.
 		- status: either `upcoming` o `active`, since pre-match odds change less frequently than live
