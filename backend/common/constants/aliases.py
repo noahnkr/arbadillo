@@ -278,37 +278,37 @@ BASKETBALL_MARKET_ALIASES = {
     'player_points': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['points', 'player points', 'total points']
+        'aliases': ['points', 'player points', 'total points', 'points milestones']
     },
     'player_rebounds': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['rebounds', 'player rebounds', 'total rebounds']
+        'aliases': ['rebounds', 'player rebounds', 'total rebounds', 'rebounds milestones']
     },
     'player_assists': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['assists', 'player assists', 'total assists']
+        'aliases': ['assists', 'player assists', 'total assists', 'assists milestones']
     },
     'player_threes': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['threes', '3-point field goals', '3-pointers', 'player threes', 'total 3-point field goals']
+        'aliases': ['threes', '3-point field goals', '3-pointers', 'player threes', 'total 3-point field goals', 'threes milestones']
     },
     'player_steals': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['steals', 'player steals', 'total steals']
+        'aliases': ['steals', 'player steals', 'total steals', 'steals milestones']
     },
     'player_blocks': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['blocks', 'player blocks', 'total blocks']
+        'aliases': ['blocks', 'player blocks', 'total blocks', 'blocks milestones']
     },
     'player_turnovers': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['turnovers', 'player turnovers', 'total turnovers']
+        'aliases': ['turnovers', 'player turnovers', 'total turnovers', 'turnovers milestones']
     },
     'player_points_rebounds_assists': {
         'type': 'over_under',
@@ -317,7 +317,8 @@ BASKETBALL_MARKET_ALIASES = {
             'points + rebounds + assists', 'pts + reb + ast',
             'points, rebounds, and assists',
             'total points, rebounds, and assists',
-            'player points, rebounds, and assists'
+            'player points, rebounds, and assists',
+            'points + rebounds + assists milestones'
         ]
     },
     'player_points_rebounds': {
@@ -326,7 +327,8 @@ BASKETBALL_MARKET_ALIASES = {
         'aliases': [
             'points + rebounds', 'pts + reb',
             'points and rebounds', 'total points and rebounds',
-            'player points and rebounds'
+            'player points and rebounds',
+            'points + rebounds milestones'
         ]
     },
     'player_points_assists': {
@@ -335,7 +337,8 @@ BASKETBALL_MARKET_ALIASES = {
         'aliases': [
             'points + assists', 'pts + ast',
             'points and assists', 'total points and assists',
-            'player points and assists'
+            'player points and assists',
+            'points + assists milestones'
         ]
     },
     'player_rebounds_assists': {
@@ -344,7 +347,8 @@ BASKETBALL_MARKET_ALIASES = {
         'aliases': [
             'rebounds + assists', 'reb + ast',
             'rebounds and assists', 'total rebounds and assists',
-            'player rebounds and assists'
+            'player rebounds and assists',
+            'rebounds + assists milestones'
         ]
     },
     'player_steals_blocks': {
@@ -353,7 +357,8 @@ BASKETBALL_MARKET_ALIASES = {
         'aliases': [
             'steals + blocks', 'stl + blk',
             'steals and blocks', 'total steals and blocks',
-            'player steals and blocks'
+            'player steals and blocks',
+            'steals + blocks milestones'
         ]
     },
     'player_double_double': {
@@ -388,69 +393,69 @@ BASKETBALL_MARKET_ALIASES = {
     }
 }
 
-
 BASEBALL_MARKET_ALIASES = {
     'batter_home_runs': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['home runs', 'batter home runs', 'player home runs', 'total home runs', 'total home runs hit']
+        'aliases': ['home runs', 'batter home runs', 'player home runs', 'total home runs', 'total home runs hit', 'home runs milestones']
     },
     'batter_hits': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['hits', 'batter hits', 'player hits', 'total hits']
+        'aliases': ['hits', 'batter hits', 'player hits', 'total hits', 'hits milestones']
     },
     'batter_total_bases': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['total bases', 'batter total bases', 'player total bases']
+        'aliases': ['total bases', 'batter total bases', 'player total bases', 'total bases milestones']
     },
     'batter_rbis': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['rbi', 'rbis', 'batter rbis', 'player rbis', 'total rbis']
+        'aliases': ['rbi', 'rbis', 'batter rbis', 'player rbis', 'total rbis', 'rbis milestones']
     },
     'batter_singles': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['singles', 'batter singles', 'player singles', 'total singles hit']
+        'aliases': ['singles', 'batter singles', 'player singles', 'total singles hit', 'singles milestones']
     },
     'batter_runs_scored': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['runs', 'runs scored', 'batter runs', 'player runs', 'total runs scored']
+        'aliases': ['runs', 'runs scored', 'batter runs', 'player runs', 'total runs scored', 'runs milestones']
     },
     'batter_hits_runs_rbis': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['hits + runs + rbis', 'batter hits + runs + rbis', 'player hits + runs + rbis', 'total hits + runs + rbis']
+        'aliases': ['hits + runs + rbis', 'batter hits + runs + rbis', 'player hits + runs + rbis', 'total hits + runs + rbis', 'hits + runs + rbis milestones']
     },
     'batter_stolen_bases': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['stolen bases', 'batter stolen bases', 'player stolen bases', 'total stolen bases']
+        'aliases': ['stolen bases', 'batter stolen bases', 'player stolen bases', 'total stolen bases', 'stolen bases milestones']
     },
     'pitcher_strikeouts': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['strikeouts', 'pitcher strikeouts', 'player strikeouts', 'total strikeouts']
+        'aliases': ['strikeouts', 'pitcher strikeouts', 'player strikeouts', 'total strikeouts', 'strikeouts milestones']
     },
     'pitcher_walks': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['walks', 'walks allowed', 'pitcher walks', 'player walks', 'total walks allowed']
+        'aliases': ['walks', 'walks allowed', 'pitcher walks', 'player walks', 'total walks allowed', 'walks milestones']
     },
     'pitcher_hits_allowed': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['hits allowed', 'pitcher hits allowed', 'player hits allowed', 'total hits allowed']
+        'aliases': ['hits allowed', 'pitcher hits allowed', 'player hits allowed', 'total hits allowed', 'hits allowed milestones']
     },
     'pitcher_outs': {
         'type': 'over_under',
         'scope': 'player',
-        'aliases': ['outs', 'outs recorded', 'pitcher outs', 'player outs', 'total outs recorded']
-    },
+        'aliases': ['outs', 'outs recorded', 'pitcher outs', 'player outs', 'total outs recorded', 'outs milestones']
+    }
 }
+
 
 SOCCER_MARKET_ALIASES = {}
 
@@ -790,6 +795,7 @@ MARKET_ALIASES = {
 REVERSE_MARKET_LOOKUP = {}
 for league, league_aliases in MARKET_ALIASES.items():
     for standard, mapping in league_aliases.items():
+        REVERSE_MARKET_LOOKUP[(league, standard)] = (standard, mapping['type'], mapping['scope'])
         for alias in mapping['aliases']:
             REVERSE_MARKET_LOOKUP[(league, clean_str(alias))] = (standard, mapping['type'], mapping['scope'])
 
