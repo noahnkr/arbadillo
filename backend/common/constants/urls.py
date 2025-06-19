@@ -40,6 +40,7 @@ DRAFTKINGS_URLS = {
     'ncaaf': '',
     'ncaab': '',
     'ncaaw': '',
+    'event': 'https://sportsbook-nash.draftkings.com/api/sportscontent/dkusil/v1/events',
 }
 
 FANDUEL_URLS = {
