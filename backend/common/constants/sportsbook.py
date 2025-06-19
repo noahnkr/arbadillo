@@ -1,4 +1,6 @@
-SPORTSBOOKS = { 'espn', 'fanduel', 'draftkings', 'betmgm', 'bet365', 'caesars', 'fanatics', 'betrivers', }
+# ---------- Sportsbook Attributes ----------
+
+SPORTSBOOKS = { 'espnbet', 'fanduel', 'draftkings', 'betmgm', 'bet365', 'caesars', 'fanatics', 'betrivers', }
 
 SPORTS = { 'football', 'basketball', 'baseball', 'soccer', 'hockey', }
 
@@ -20,20 +22,19 @@ PRIMARY_MARKETS = { 'moneyline', 'spread', 'total' }
 
 MARKET_TYPES = { 'moneyline', 'spread', 'total', 'over_under', 'yes_no', }
 
-# ---------- Redis TTLs ----------
+# ---------- Clients ----------
 
-EVENT_EXPIRATION_TIME = 60 * 60 * 24
-
-ODDS_EXPIRATION_TIME = 60 * 60
-
-PLAYER_EXPIRATION_TIME = 60 * 60 * 24 * 7
-
-TEAM_EXPIRATION_TIME = 60 * 60 * 24 * 7
-
-CLIENT_SCRAPERS = { 'espn', 'draftkings', 'fanduel', }
+SPORTSBOOK_CLIENTS = { 'espnbet', 'draftkings', 'fanduel', }
 
 CLIENT_MAP = {
     'espn': 'scraper.apiclients.espn.ESPNClient',
+    'espnbet': 'scraper.apiclients.espnbet.ESPNBetClient',
     'draftkings': 'scraper.apiclients.draftkings.DraftKingsClient',
     'fanduel': 'scraper.apiclients.fanduel.FanDuelClient',
 }
+
+# ---------- Redis TTLs ----------
+
+EVENT_TTL = 60 * 60 * 24
+
+ODDS_TTL = 60 * 60
