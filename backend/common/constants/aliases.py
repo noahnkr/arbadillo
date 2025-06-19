@@ -277,34 +277,42 @@ FOOTBALL_MARKET_ALIASES = {}
 BASKETBALL_MARKET_ALIASES = {
     'player_points': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['points', 'player points', 'total points']
     },
     'player_rebounds': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['rebounds', 'player rebounds', 'total rebounds']
     },
     'player_assists': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['assists', 'player assists', 'total assists']
     },
     'player_threes': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['threes', '3-point field goals', '3-pointers', 'player threes', 'total 3-point field goals']
     },
     'player_steals': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['steals', 'player steals', 'total steals']
     },
     'player_blocks': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['blocks', 'player blocks', 'total blocks']
     },
     'player_turnovers': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['turnovers', 'player turnovers', 'total turnovers']
     },
     'player_points_rebounds_assists': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': [
             'points + rebounds + assists', 'pts + reb + ast',
             'points, rebounds, and assists',
@@ -314,6 +322,7 @@ BASKETBALL_MARKET_ALIASES = {
     },
     'player_points_rebounds': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': [
             'points + rebounds', 'pts + reb',
             'points and rebounds', 'total points and rebounds',
@@ -322,6 +331,7 @@ BASKETBALL_MARKET_ALIASES = {
     },
     'player_points_assists': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': [
             'points + assists', 'pts + ast',
             'points and assists', 'total points and assists',
@@ -330,6 +340,7 @@ BASKETBALL_MARKET_ALIASES = {
     },
     'player_rebounds_assists': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': [
             'rebounds + assists', 'reb + ast',
             'rebounds and assists', 'total rebounds and assists',
@@ -338,6 +349,7 @@ BASKETBALL_MARKET_ALIASES = {
     },
     'player_steals_blocks': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': [
             'steals + blocks', 'stl + blk',
             'steals and blocks', 'total steals and blocks',
@@ -346,26 +358,32 @@ BASKETBALL_MARKET_ALIASES = {
     },
     'player_double_double': {
         'type': 'yes_no',
+        'scope': 'player',
         'aliases': ['double double', 'to record a double double']
     },
     'player_triple_double': {
         'type': 'yes_no',
+        'scope': 'player',
         'aliases': ['triple double', 'to record a triple double']
     },
     'team_points': {
         'type': 'over_under',
+        'scope': 'team',
         'aliases': ['team points', 'team total points']
     },
     'team_threes': {
         'type': 'over_under',
+        'scope': 'team',
         'aliases': ['team threes', 'team 3-pointers', 'team total 3-pointers made']
     },
     'team_steals': {
         'type': 'over_under',
+        'scope': 'team',
         'aliases': ['team steals', 'team total steals']
     },
     'team_blocks': {
         'type': 'over_under',
+        'scope': 'team',
         'aliases': ['team blocks', 'team total blocks']
     }
 }
@@ -374,50 +392,62 @@ BASKETBALL_MARKET_ALIASES = {
 BASEBALL_MARKET_ALIASES = {
     'batter_home_runs': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['home runs', 'batter home runs', 'player home runs', 'total home runs', 'total home runs hit']
     },
     'batter_hits': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['hits', 'batter hits', 'player hits', 'total hits']
     },
     'batter_total_bases': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['total bases', 'batter total bases', 'player total bases']
     },
     'batter_rbis': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['rbi', 'rbis', 'batter rbis', 'player rbis', 'total rbis']
     },
     'batter_singles': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['singles', 'batter singles', 'player singles', 'total singles hit']
     },
     'batter_runs_scored': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['runs', 'runs scored', 'batter runs', 'player runs', 'total runs scored']
     },
     'batter_hits_runs_rbis': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['hits + runs + rbis', 'batter hits + runs + rbis', 'player hits + runs + rbis', 'total hits + runs + rbis']
     },
     'batter_stolen_bases': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['stolen bases', 'batter stolen bases', 'player stolen bases', 'total stolen bases']
     },
     'pitcher_strikeouts': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['strikeouts', 'pitcher strikeouts', 'player strikeouts', 'total strikeouts']
     },
     'pitcher_walks': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['walks', 'walks allowed', 'pitcher walks', 'player walks', 'total walks allowed']
     },
     'pitcher_hits_allowed': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['hits allowed', 'pitcher hits allowed', 'player hits allowed', 'total hits allowed']
     },
     'pitcher_outs': {
         'type': 'over_under',
+        'scope': 'player',
         'aliases': ['outs', 'outs recorded', 'pitcher outs', 'player outs', 'total outs recorded']
     },
 }
@@ -427,89 +457,322 @@ SOCCER_MARKET_ALIASES = {}
 HOCKEY_MARKET_ALIASES = {}
 
 PRIMARY_MARKET_ALIASES = {
+    # Standard & Alternative Markets
     'moneyline': {
         'type': 'moneyline',
-        'aliases': ['Moneyline', 'ML', 'Win', 'To Win', 'Team to Win', 'Match Winner', 'Winner', 'H2H']
+        'scope': 'team',
+        'aliases': ['moneyline', 'ml', 'win', 'to win', 'team to win', 'match winner', 'winner', 'h2h']
     },
     'spread': {
         'type': 'spread',
-        'aliases': ['Spread', 'Point Spread', 'Run Line', 'Puck Line', 'Handicap', 'Line', 'ATS']
+        'scope': 'team',
+        'aliases': ['spread', 'point spread', 'spread betting', 'run line', 'puck line', 'handicap', 'line', 'ats']
     },
     'total': {
         'type': 'total',
-        'aliases': ['Total', 'Game Total', 'Total Points', 'O/U', 'Over/Under', 'Over', 'Under', 'Match Total', 'Points Total', 'Goals Total', 'Runs Total']
+        'scope': 'team',
+        'aliases': ['total', 'game total', 'total points', 'o/u', 'over/under', 'over', 'under', 'match total', 'points total', 'goals total', 'runs total']
     },
+    'alt_spread': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': [
+            'alternate spread', 'alt spread', 'alternate line', 'alt line',
+            'alternate puck line', 'alt puck line',
+            'alternate run line', 'alt run line'
+        ]
+    },
+    'alt_total': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': [
+            'alternate total', 'alt total', 'alternate game total',
+            'alternate runs total', 'alternate goals total',
+            'alternate points total'
+        ]
+    },
+
+    # Halves Standard & Alternative Markets
     'moneyline_h1': {
         'type': 'moneyline',
-        'aliases': ['1st Half Moneyline']
+        'scope': 'team',
+        'aliases': ['1st half moneyline', 'first half moneyline']
     },
     'spread_h1': {
         'type': 'spread',
-        'aliases': ['1st Half Spread']
+        'scope': 'team',
+        'aliases': ['1st half spread', 'first half spread']
     },
     'total_h1': {
         'type': 'total',
-        'aliases': ['1st Half Total']
+        'scope': 'team',
+        'aliases': ['1st half total', 'first half total']
+    },
+    'alt_spread_h1': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['alternate 1st half spread', 'alt 1st half spread', 'alt spread 1h']
+    },
+    'alt_total_h1': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['alternate 1st half total', 'alt 1st half total', 'alt total 1h']
     },
     'moneyline_h2': {
         'type': 'moneyline',
-        'aliases': ['2nd Half Moneyline']
+        'scope': 'team',
+        'aliases': ['2nd half moneyline', 'second half moneyline']
     },
     'spread_h2': {
         'type': 'spread',
-        'aliases': ['2nd Half Spread']
+        'scope': 'team',
+        'aliases': ['2nd half spread', 'second half spread']
     },
     'total_h2': {
         'type': 'total',
-        'aliases': ['2nd Half Total',]
+        'scope': 'team',
+        'aliases': ['2nd half total', 'second half total']
     },
+    'alt_spread_h2': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['alternate 2nd half spread', 'alt 2nd half spread', 'alt spread 2h']
+    },
+    'alt_total_h2': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['alternate 2nd half total', 'alt 2nd half total', 'alt total 2h']
+    },
+
+    # Quarters Standard & Alternative Markets
     'moneyline_q1': {
         'type': 'moneyline',
-        'aliases': ['1st Quarter Moneyline']
+        'scope': 'team',
+        'aliases': ['1st quarter moneyline', 'first quarter moneyline']
     },
     'spread_q1': {
         'type': 'spread',
-        'aliases': ['1st Quarter Spread']
+        'scope': 'team',
+        'aliases': ['1st quarter spread', 'first quarter spread']
     },
     'total_q1': {
         'type': 'total',
-        'aliases': ['1st Quarter Total']
+        'scope': 'team',
+        'aliases': ['1st quarter total', 'first quarter total']
+    },
+    'alt_spread_q1': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['alternate 1st quarter spread', 'alt 1st quarter spread', 'alt spread q1']
+    },
+    'alt_total_q1': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['alternate 1st quarter total', 'alt 1st quarter total', 'alt total q1']
     },
     'moneyline_q2': {
         'type': 'moneyline',
-        'aliases': ['2nd Quarter Moneyline']
+        'scope': 'team',
+        'aliases': ['2nd quarter moneyline', 'second quarter moneyline']
     },
     'spread_q2': {
         'type': 'spread',
-        'aliases': ['2nd Quarter Spread']
+        'scope': 'team',
+        'aliases': ['2nd quarter spread', 'second quarter spread']
     },
     'total_q2': {
         'type': 'total',
-        'aliases': ['2nd Quarter Total']
+        'scope': 'team',
+        'aliases': ['2nd quarter total', 'second quarter total']
+    },
+    'alt_spread_q2': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['alternate 2nd quarter spread', 'alt 2nd quarter spread', 'alt spread q2']
+    },
+    'alt_total_q2': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['alternate 2nd quarter total', 'alt 2nd quarter total', 'alt total q2']
     },
     'moneyline_q3': {
         'type': 'moneyline',
-        'aliases': ['3rd Quarter Moneyline']
+        'scope': 'team',
+        'aliases': ['3rd quarter moneyline', 'third quarter moneyline']
     },
     'spread_q3': {
         'type': 'spread',
-        'aliases': ['3rd Quarter Spread']
+        'scope': 'team',
+        'aliases': ['3rd quarter spread', 'third quarter spread']
     },
     'total_q3': {
         'type': 'total',
-        'aliases': ['3rd Quarter Total']
+        'scope': 'team',
+        'aliases': ['3rd quarter total', 'third quarter total']
+    },
+    'alt_spread_q3': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['alternate 3rd quarter spread', 'alt 3rd quarter spread', 'alt spread q3']
+    },
+    'alt_total_q3': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['alternate 3rd quarter total', 'alt 3rd quarter total', 'alt total q3']
     },
     'moneyline_q4': {
         'type': 'moneyline',
-        'aliases': ['4th Quarter Moneyline']
+        'scope': 'team',
+        'aliases': ['4th quarter moneyline', 'fourth quarter moneyline']
     },
     'spread_q4': {
         'type': 'spread',
-        'aliases': ['4th Quarter Spread']
+        'scope': 'team',
+        'aliases': ['4th quarter spread', 'fourth quarter spread']
     },
     'total_q4': {
         'type': 'total',
-        'aliases': ['4th Quarter Total']
+        'scope': 'team',
+        'aliases': ['4th quarter total', 'fourth quarter total']
+    },
+    'alt_spread_q4': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['alternate 4th quarter spread', 'alt 4th quarter spread', 'alt spread q4']
+    },
+    'alt_total_q4': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['alternate 4th quarter total', 'alt 4th quarter total', 'alt total q4']
+    },
+
+    # Baseball - First 5 & First 7
+    'moneyline_f5': {
+        'type': 'moneyline',
+        'scope': 'team',
+        'aliases': ['first 5 innings moneyline', 'f5 moneyline']
+    },
+    'spread_f5': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['first 5 innings spread', 'f5 spread']
+    },
+    'total_f5': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['first 5 innings total', 'f5 total']
+    },
+    'alt_spread_f5': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['alternate first 5 innings spread', 'alt f5 spread', 'alternate f5 line']
+    },
+    'alt_total_f5': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['alternate first 5 innings total', 'alt f5 total']
+    },
+    'moneyline_f7': {
+        'type': 'moneyline',
+        'scope': 'team',
+        'aliases': ['first 7 innings moneyline', 'f7 moneyline']
+    },
+    'spread_f7': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['first 7 innings spread', 'f7 spread']
+    },
+    'total_f7': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['first 7 innings total', 'f7 total']
+    },
+    'alt_spread_f7': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['alternate first 7 innings spread', 'alt f7 spread']
+    },
+    'alt_total_f7': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['alternate first 7 innings total', 'alt f7 total']
+    },
+
+    # Hockey - Period Markets
+    'moneyline_p1': {
+        'type': 'moneyline',
+        'scope': 'team',
+        'aliases': ['1st period moneyline', 'first period moneyline']
+    },
+    'spread_p1': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['1st period spread', 'first period spread']
+    },
+    'total_p1': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['1st period total', 'first period total']
+    },
+    'alt_spread_p1': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['alternate 1st period spread', 'alt period 1 spread', 'alt p1 spread']
+    },
+    'alt_total_p1': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['alternate 1st period total', 'alt p1 total']
+    },
+    'moneyline_p2': {
+        'type': 'moneyline',
+        'scope': 'team',
+        'aliases': ['2nd period moneyline', 'second period moneyline']
+    },
+    'spread_p2': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['2nd period spread', 'second period spread']
+    },
+    'total_p2': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['2nd period total', 'second period total']
+    },
+    'alt_spread_p2': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['alternate 2nd period spread', 'alt p2 spread']
+    },
+    'alt_total_p2': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['alternate 2nd period total', 'alt p2 total']
+    },
+    'moneyline_p3': {
+        'type': 'moneyline',
+        'scope': 'team',
+        'aliases': ['3rd period moneyline', 'third period moneyline']
+    },
+    'spread_p3': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['3rd period spread', 'third period spread']
+    },
+    'total_p3': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['3rd period total', 'third period total']
+    },
+    'alt_spread_p3': {
+        'type': 'spread',
+        'scope': 'team',
+        'aliases': ['alternate 3rd period spread', 'alt p3 spread']
+    },
+    'alt_total_p3': {
+        'type': 'total',
+        'scope': 'team',
+        'aliases': ['alternate 3rd period total', 'alt p3 total']
     },
 }
 
@@ -528,9 +791,9 @@ REVERSE_MARKET_LOOKUP = {}
 for league, league_aliases in MARKET_ALIASES.items():
     for standard, mapping in league_aliases.items():
         for alias in mapping['aliases']:
-            REVERSE_MARKET_LOOKUP[(league, clean_str(alias))] = (standard, mapping['type'])
+            REVERSE_MARKET_LOOKUP[(league, clean_str(alias))] = (standard, mapping['type'], mapping['scope'])
 
-MARKET_WITH_LINE_REGEX = r'''
+MARKET_EXACT_RESULT_REGEX = r'''
     (?:to\s)? 
     (?:record|hit|score)?
     \s*
@@ -538,12 +801,13 @@ MARKET_WITH_LINE_REGEX = r'''
     \s+
     (?P<market>
         hits?|home\s+runs?|bases?|total\s+bases?|strikeouts?|
-        stolen\s+bases?|rbis?|runs?|points?|rebounds?|made\s+threes?
+        stolen\s+bases?|rbis?|runs?|points?|rebounds?|made\s+threes?|
+        double\s+double|triple\s+double
     )
 '''
-MARKET_WITH_LINE_PATTERN = re.compile(MARKET_WITH_LINE_REGEX, re.IGNORECASE | re.VERBOSE)
+MARKET_EXACT_RESULT_PATTERN = re.compile(MARKET_EXACT_RESULT_REGEX, re.IGNORECASE | re.VERBOSE)
 
-MARKET_WITHOUT_LINE_REGEX = r'''
+MARKET_OVER_UNDER_REGEX = r'''
     (?P<scope>
         player|pitcher|batter|total|team
     )?
@@ -553,7 +817,9 @@ MARKET_WITHOUT_LINE_REGEX = r'''
         stolen\s+bases?|rbis?|runs?|points?|rebounds?|made\s+threes?
     )
 '''
-MARKET_WITHOUT_LINE_PATTERN = re.compile(MARKET_WITHOUT_LINE_REGEX, re.IGNORECASE | re.VERBOSE)
+MARKET_OVER_UNDER_PATTERN = re.compile(MARKET_OVER_UNDER_REGEX, re.IGNORECASE | re.VERBOSE)
+
+MARKET_SCOPE_INCLUDED = re.compile(r'^(?P<scope>.+)\s-\s(?P<market>.+)$')
 
 # ---------- Statuses ----------
 
@@ -564,6 +830,6 @@ EVENT_STATUS_ALIASES = {
 }
 
 ODDS_STATUS_ALIASES = {
-    'active': ['active', 'current', 'live', 'in'],
+    'active': ['active', 'open', 'current', 'live', 'in'],
     'suspended': ['suspended', 'closed'],
 }

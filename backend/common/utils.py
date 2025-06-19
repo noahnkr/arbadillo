@@ -1,7 +1,7 @@
 from common.constants.sportsbook import SPORTS_LEAGUES, CLIENT_MAP
 from common.constants.aliases import (
     REVERSE_TEAM_LOOKUP, REVERSE_MARKET_LOOKUP, EVENT_STATUS_ALIASES, ODDS_STATUS_ALIASES, 
-    MARKET_WITH_LINE_PATTERN, MARKET_WITHOUT_LINE_PATTERN,
+    MARKET_EXACT_RESULT_PATTERN, MARKET_OVER_UNDER_PATTERN, MARKET_SCOPE_INCLUDED_PATTERN,
 )
 from common.exceptions import NormalizationError
 from datetime import datetime
@@ -12,6 +12,17 @@ import json
 import re
 
 # ---------- String Helpers -----------
+
+def extract_float(raw: str) -> float | None:
+    """Extracts the first numeric value from a string and returns it as a float."""
+    match = re.search(r'\d+(?:\.\d+)?', raw)
+    return float(match.group()) if match else None
+
+
+def extract_text(raw: str) -> str | None:
+    """Extracts the first alpha values from a string."""
+    match = re.search(r'[a-z\s]*', raw)
+    return float(match.group().strip()) if match else None
 
 def clean_str(raw: str) -> str:
     """Trim and normalize input string extracted from web and JSON"""
@@ -77,13 +88,13 @@ def normalize_team_name(name: str, league: str) -> str:
         raise NormalizationError(f'Unknown team name `{name}` for league `{league}`')
 
 
-def normalize_market_name(market: str, league: str) -> tuple[str, str, float | None]:
+def normalize_market_name(market: str, league: str) -> tuple[str, str, float | None, str | None]:
     """
     Normalize a raw sportsbook market name into a standardized canonical format.
 
     This function attempts to identify the standardized market key (e.g., 'player_points'),
     the associated market type (e.g., 'over_under'), and any applicable line value 
-    (e.g., 9.5 from 'To Score 10+ Points').
+    (e.g., 9.5 from 'To Score 10+ Points') and its outcome (e.g., yes/no, over/under)
 
     Parameters:
         market (str): The raw market name string from the sportsbook (e.g., "To Record 2+ Hits").
@@ -94,48 +105,66 @@ def normalize_market_name(market: str, league: str) -> tuple[str, str, float | N
             - market_name: standardized slug identifier (e.g., 'player_points')
             - market_type: general market category (e.g., 'over_under', 'moneyline', 'yes_no')
             - line: float line value if extracted (e.g., 1.5), otherwise None
+            - outcome: outcome of the prop if extracted (e.g., 'over'), otherwise None
 
     Raises:
         NormalizationError: If no known or pattern-matched alias can be identified for the input.
     """
     key = (league, clean_str(market))
     if key in REVERSE_MARKET_LOOKUP:
-        market_name, market_type = REVERSE_MARKET_LOOKUP[key]
-        return market_name, market_type, None
+        market_name, market_type, market_scope = REVERSE_MARKET_LOOKUP[key]
+        return market_name, market_type, market_scope, None, None
 
-    with_line = MARKET_WITH_LINE_PATTERN.search(market)
-    if with_line:
-        raw_line = with_line.group('line')
-        raw_market = with_line.group('market')
+    exact_result = MARKET_EXACT_RESULT_PATTERN.search(market)
+    if exact_result:
+        # Convert a counting prop in yes format into its respective over format
+        # (e.g., To Record 2+ Hits -> Over 1.5 Hits)
+        raw_line = exact_result.group('line')
+        raw_market = exact_result.group('market')
 
         if not raw_line or not raw_market:
-            raise NormalizationError(f"Invalid format in market with line: `{market}`")
+            raise NormalizationError(f'Invalid format in market with line: `{market}`')
 
         line = 1 if raw_line.lower() in {'a', 'an'} else float(raw_line.replace('+', ''))
         line -= 0.5
 
         key = (league, clean_str(raw_market))
         if key not in REVERSE_MARKET_LOOKUP:
-            raise NormalizationError(f"Unknown market `{raw_market}` in line-based format")
+            raise NormalizationError(f'Unknown exact result market `{raw_market}`')
 
-        market_name, market_type = REVERSE_MARKET_LOOKUP[key]
-        return market_name, market_type, line
+        market_name, market_type, market_scope = REVERSE_MARKET_LOOKUP[key]
+        outcome = 'over' if market_type == 'over_under' else 'yes'
+        return market_name, market_type, market_scope, line, outcome
 
-    without_line = MARKET_WITHOUT_LINE_PATTERN.search(market)
-    if without_line:
-        raw_scope = without_line.groupdict().get('scope', '')
-        raw_market = without_line.group('market')
+    over_under = MARKET_OVER_UNDER_PATTERN.search(market)
+    if over_under:
+        raw_scope = over_under.groupdict().get('scope', '')
+        raw_market = over_under.group('market')
+        line, outcome = None, None # These will be determined later
 
         if not raw_market:
-            raise NormalizationError(f"Invalid format in market without line: `{market}`")
+            raise NormalizationError(f'Invalid format in market without line: `{market}`')
 
         combined = f'{raw_scope} {raw_market}'.strip() if raw_scope else raw_market
         key = (league, clean_str(combined))
         if key not in REVERSE_MARKET_LOOKUP:
-            raise NormalizationError(f"Unknown market `{combined}` in scope-based format")
+            raise NormalizationError(f'Unknown over/under market `{combined}`')
 
-        market_name, market_type = REVERSE_MARKET_LOOKUP[key]
-        return market_name, market_type, None
+        market_name, market_type, market_scope = REVERSE_MARKET_LOOKUP[key]
+        return market_name, market_type, market_scope, line, outcome
+
+    scope_included = MARKET_SCOPE_INCLUDED_PATTERN.search(market)
+    if scope_included:
+        raw_scope = scope_included.group('scope')
+        raw_market = scope_included.group('market')
+        line, outcome = None, None # These will be determined later
+
+        key = (league, clean_str(raw_market))
+        if key not in REVERSE_MARKET_LOOKUP:
+            raise NormalizationError(f'Unknown scope-included market `{market}` in scope-based format')
+
+        market_name, market_type, _ = REVERSE_MARKET_LOOKUP[key]
+        return market_name, market_type, raw_scope, line, outcome
 
     raise NormalizationError(f'Unknown market name `{market}` for league `{league}`')
 
