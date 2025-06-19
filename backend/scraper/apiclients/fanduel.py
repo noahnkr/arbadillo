@@ -8,7 +8,7 @@ from common.constants.sportsbook import (
 )
 from common.utils import (
     normalize_team_name, normalize_market_name, create_event_key, generate_data_hash, 
-    create_market_key, utc_to_cst, format_odds, normalize_status_name
+    create_market_key, utc_to_cst, format_odds, normalize_status_name, extract_float, extract_text,
 )
 from common.exceptions import NormalizationError
 from common.playwright_manager import PlaywrightSessionManager
@@ -37,11 +37,13 @@ class FanDuelClient(SportsbookClient):
                 'timezone': 'America%2FChicago'
             }
             data = self.fetch_data(url, headers=headers, params=params, session=self.session)
-            self.logger.info(f'fetched {len(data["attachments"]["events"].values())} events ({self.league})')
+            event_count = len(data.get('attachments', {}).get('events', {}).values())
+            self.logger.info(f'fetched {event_count} events ({self.league})')
         except Exception as e:
             self.logger.exception(f'{e} occured while yielding schedule request to {url} ({self.league})')
 
-        for event in data['attachments']['events'].values():
+        events = data.get('attachments', {}).get('events', {}).values()
+        for event in events:
             try:
                 event_id = event['eventId']
 
@@ -75,11 +77,10 @@ class FanDuelClient(SportsbookClient):
     def parse_primary_odds(self, status):
         url = FANDUEL_URLS[self.league]
         if not url:
-            self.logger.warning(f'odds url not found ({self.league})')
+            self.logger.warning(f'primary odds url not found ({self.league})')
             return
 
-        self.logger.info(f'starting odds request ({self.league})')
-        keys = self.redis.smembers(f'espn:events:{status}')
+        self.logger.info(f'starting primary odds request ({self.league})')
         try:
             headers = {
                 'origin': 'https://sportsbook.fanduel.com',
@@ -90,88 +91,52 @@ class FanDuelClient(SportsbookClient):
                 'timezone': 'America%2FChicago'
             }
             data = self.fetch_data(url, headers=headers, params=params, session=self.session)
-            self.logger.info(f'fetched {len(data["attachments"]["markets"].values())} markets ({self.league})')
+            market_count = len(data.get('attachments', {}).get('markets', {}).values())
+            self.logger.info(f'fetched {market_count} markets ({self.league})')
         except Exception as e:
-            self.logger.exception(f'{e} occured while yielding odds request to {url} ({self.league})')
+            self.logger.exception(f'{e} occured while yielding primary odds request to {url} ({self.league})')
+
+        status_keys = self.redis.smembers(f'espn:events:{status}')
 
         primary = []
-        for market in data['attachments']['markets'].values():
+        markets = data.get('attachments', {}).get('markets', {}).values()
+        for market in markets:
             try:
                 event_id = market['eventId']
                 event_key = self.redis.get(f'{self.name}:keys:{event_id}')
-                if not event_key or event_key not in keys:
+                if not event_key or event_key not in status_keys:
                     continue
 
-                market_name = normalize_market_name(market['marketName'], self.league)
+                market_name, market_type, scope, line, outcome = normalize_market_name(market['marketName'], self.league)
                 if market_name not in PRIMARY_MARKETS:
                     continue
 
-                odds_entries = self.parse_runners(market, market_name, self.league)
+                runner_odds = self.parse_runners(market, event_key, market_name, market_type, scope, line, outcome)
 
-                for entry in odds_entries:
-                    market_key = create_market_key(entry['market'], entry['line'])
-                    odds_data = {
-                        'event_key': event_key,
-                        'market_key': market_key,
-                        'sportsbook': self.name,
-                        'market': entry['market'],
-                        'outcome': entry['outcome'],
-                        'line': entry['line'],
-                        'value': entry['value'],
-                        'team': None,
-                        'player': None,
-                        'status': entry['statuts'],
-                    }
-
+                for odds_data in runner_odds:
                     odds_hash = generate_data_hash(odds_data)
-                    redis_key = f'{self.name}:odds:{event_key}:{market_key}:{entry["outcome"]}'
-                    redis_hash_key = f'{self.name}:hashes:{event_key}:{market_key}:{entry["outcome"]}'
+                    redis_key = f'{self.name}:odds:{event_key}:{odds_data["market_key"]}:{odds_data["outcome"]}'
+                    redis_hash_key = f'{self.name}:hashes:{event_key}:{odds_data["market_key"]}:{odds_data["outcome"]}'
                     prev_hash = self.redis.get(redis_hash_key)
 
                     if prev_hash != odds_hash:
                         primary.append(odds_data)
                         self.redis.set(redis_key, json.dumps(odds_data), ex=ODDS_EXPIRATION_TIME)
                         self.redis.set(redis_hash_key, odds_hash, ex=ODDS_EXPIRATION_TIME)
-                        self.logger.info(f'scraped {format_odds(odds_data, entry["market"])} for {event_key}')
+                        self.logger.info(f'scraped {format_odds(odds_data, odds_data["market"])} for {event_key}')
 
             except NormalizationError as e:
                 self.logger.warning(f'{e} ({self.league})')
             except Exception as e:
-                self.logger.exception(f'{e} occured while scraping odds ({self.league})')
+                self.logger.exception(f'{e} occured while scraping primary odds ({self.league})')
 
         if not primary:
-            self.logger.info(f'no new odds to upsert ({self.league})')
+            self.logger.info(f'no new primary odds to upsert ({self.league})')
         else:
-            self.logger.info(f'upserting {len(primary)} odds ({self.league})')
+            self.logger.info(f'upserting {len(primary)} primary odds ({self.league})')
             batch_upsert_odds.delay(primary)
 
-
-    def parse_runners(self, market, market_name, league):
-        """Parses runners and returns a list of odds_data entries."""
-        runners = market['runners']
-        odds_entries = []
-
-        if market_name in {'moneyline', 'spread'}:
-            for runner in runners:
-                odds_entries.append({
-                    'market': market_name,
-                    'outcome': normalize_team_name(runner['runnerName'], league),
-                    'line': None if market_name == 'moneyline' else runner['handicap'],
-                    'value': runner['winRunnerOdds']['trueOdds']['decimalOdds']['decimalOdds'],
-                    'status': normalize_status_name(runner['runnerStatus'], event=False)
-                })
-        elif market_name == 'total':
-            for i, runner in enumerate(runners):
-                odds_entries.append({
-                    'market': 'total',
-                    'outcome': 'over' if i == 0 else 'under',
-                    'line': runner['handicap'],
-                    'value': runner['winRunnerOdds']['trueOdds']['decimalOdds']['decimalOdds'],
-                    'status': normalize_status_name(runner['runnerStatus'], event=False)
-                })
-        return odds_entries
     
-
     def parse_props(self, status):
         url = FANDUEL_URLS['event']
         self.logger.info(f'starting props request ({self.league})')
@@ -192,17 +157,17 @@ class FanDuelClient(SportsbookClient):
                 params = {
                     '_ak': 'FhMFpcPWXMeyZxOx',
                     'eventId': event_id,
-                    'tab': 'popular',
+                    'tab': 'same-game-parlay' if status == 'upcoming' else 'live-sgp'
                 }
                 prop_data = self.fetch_data(url, headers=headers, params=params, session=self.session)
-                self.logger.info(f'fetched {len(prop_data["attachments"]["markets"])} markets for {event_key} ({self.league})')
+                market_count = len(prop_data.get('attachments', {}).get('markets', {}))
+                self.logger.info(f'fetched {market_count} markets for {event_key} ({self.league})')
             except Exception as e:
                 self.logger.warning(f'{e} occured while yielding prop request to {url} for {event_key} ({self.league})')
                 continue
             
             try:
-                event_props = self.parse_event_props(event_key, prop_data)
-                props.extend(event_props)
+                props.extend(self.parse_event_props(event_key, prop_data))
             except Exception as e:
                 self.logger.exception(f'{e} occured while scraping props for {event_key} ({self.league})')
                 
@@ -213,22 +178,96 @@ class FanDuelClient(SportsbookClient):
             batch_upsert_odds.delay(props)
 
 
-    def parse_event_props(self, event_key, prop_data) -> list:
+    def parse_event_props(self, event_key, prop_data) -> list[dict]:
         event_props = []
-        for prop in prop_data['attachments']['markets'].values():
+        markets = prop_data.get('attachments', {}).get('markets', {}).values()
+        for prop in markets:
             try:
-                market, market_type, line = normalize_market_name(prop['marketName'], self.league)
-                # No need to collect primary markets
-                if market in PRIMARY_MARKETS:
+                market_name, market_type, scope, line, outcome = normalize_market_name(prop['marketName'], self.league)
+                if market_name in PRIMARY_MARKETS:
                     continue
-
-                scope = 'team' if 'team' in market else 'player'
-
-                for selection in prop['runners']:
-                    pass
-
-
+                event_props.extend(self.parse_runners(prop['runners'], event_key, market_name, market_type, scope, line, outcome))
             except NormalizationError as e:
                 self.logger.warning(f'{e} ({self.league})')
             except Exception as e:
                 self.logger.exception(f'{e} occured while scraping props for {event_key} ({self.league})')
+        
+        return event_props
+
+
+    def parse_runners(self, runners, event_key, market_name, market_type, scope, line, outcome) -> list[dict]:
+        """Parses runners and returns a list of odd selection dicts."""
+        selections = []
+
+        if market_type == 'moneyline':
+            for runner in runners:
+                selections.append({
+                    'event_key': event_key,
+                    'market_key': market_name,
+                    'sportsbook': self.name,
+                    'market': market_name,
+                    'outcome': normalize_team_name(runner['runnerName'], self.league),
+                    'line': None,
+                    'value': runner['winRunnerOdds']['trueOdds']['decimalOdds']['decimalOdds'],
+                    'team': None,
+                    'player': None,
+                    'status': normalize_status_name(runner['runnerStatus'], event=False)
+                })
+
+        elif market_type in {'spread', 'total'}:
+            for runner in runners:
+                line = runner['handicap']
+                if line == 0:
+                    line = extract_float(runner['runnerName'])
+
+                outcome = extract_text(runner['runnerName'])
+                if not outcome:
+                    self.logger.warning(f'unable to extract outcome from runner name `{runner["runnerName"]}`')
+                    continue
+
+                market_key = create_market_key(market_name, line)
+                
+                selections.append({
+                    'event_key': event_key,
+                    'market_key': market_key,
+                    'sportsbook': self.name,
+                    'market': market_name,
+                    'outcome': outcome,
+                    'line': line,
+                    'value': runner['winRunnerOdds']['trueOdds']['decimalOdds']['decimalOdds'],
+                    'team': None,
+                    'player': None,
+                    'status': normalize_status_name(runner['runnerStatus'], event=False)
+                })
+        elif market_type in {'over_under', 'yes_no'}:
+            for runner in runners:
+                if not line and market_type == 'over_under':
+                    line = runner['handicap']
+                if not outcome and market_type == 'over_under':
+                    outcome = runner['result']['type'].lower()
+                if not outcome and market_type  == 'yes_no':
+                    outcome = runner['runnerName'].lower()
+
+                if scope in {'team', 'player'}:
+                    team = None # TODO: handle team names
+                    player = runner['runnerName']
+                    market_key = create_market_key(market_name, line, player=player)
+                else:
+                    team = None
+                    player = scope
+                    market_key = create_market_key(market_name, line, player=player)
+
+                selections.append({
+                    'event_key': event_key,
+                    'market_key': market_key,
+                    'sportsbook': self.name,
+                    'market': market_name,
+                    'outcome': outcome,
+                    'line': line,
+                    'value': runner['winRunnerOdds']['trueOdds']['decimalOdds']['decimalOdds'],
+                    'team': team,
+                    'player': player,
+                    'status': normalize_status_name(runner['runnerStatus'], event=False)
+                })
+
+        return selections
