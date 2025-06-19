@@ -2,7 +2,7 @@ import json
 from .base import SportsbookClient
 from scraper.tasks import batch_upsert_odds
 from common.constants.urls import DRAFTKINGS_URLS
-from common.constants.sportsbook import EVENT_EXPIRATION_TIME, ODDS_EXPIRATION_TIME, PRIMARY_MARKETS
+from common.constants.sportsbook import EVENT_TTL, ODDS_TTL, PRIMARY_MARKETS
 from common.utils import (
 	normalize_team_name, normalize_market_name, create_event_key, 
 	generate_data_hash, create_market_key, utc_to_cst, format_odds, extract_float
@@ -48,8 +48,8 @@ class DraftKingsClient(SportsbookClient):
 				# Match event to ESPN schedule
 				event_key = create_event_key(self.league, start_date, away, home)
 				if self.redis.exists(f'espn:events:{event_key}'):
-					self.redis.set(f'{self.name}:keys:{event_id}', event_key, ex=EVENT_EXPIRATION_TIME)
-					self.redis.set(f'{self.name}:ids:{event_key}', event_id, ex=EVENT_EXPIRATION_TIME)
+					self.redis.set(f'{self.name}:keys:{event_id}', event_key, ex=EVENT_TTL)
+					self.redis.set(f'{self.name}:ids:{event_key}', event_id, ex=EVENT_TTL)
 					self.logger.info(f'matched {event_key}')
 				else:
 					self.logger.warning(f'unable to match {event_key}')
@@ -94,7 +94,7 @@ class DraftKingsClient(SportsbookClient):
 						'market':  market_name,
 						'type': market_type,
 					}),
-					ex=ODDS_EXPIRATION_TIME,
+					ex=ODDS_TTL,
 				)
 			except NormalizationError as e:
 				self.logger.warning()
@@ -130,8 +130,8 @@ class DraftKingsClient(SportsbookClient):
 				if prev_hash != primary_hash:
 					# Odds data have changed, cache odds and update DB
 					primary.append(primary_data)
-					self.redis.set(redis_key, json.dumps(primary_data), ex=ODDS_EXPIRATION_TIME)
-					self.redis.set(redis_hash_key, primary_hash, ex=ODDS_EXPIRATION_TIME)
+					self.redis.set(redis_key, json.dumps(primary_data), ex=ODDS_TTL)
+					self.redis.set(redis_hash_key, primary_hash, ex=ODDS_TTL)
 					self.logger.info(f'scraped {format_odds(primary_data)} for {event_key}')
 
 			except NormalizationError as e:
@@ -184,7 +184,7 @@ class DraftKingsClient(SportsbookClient):
 							'market':  market_name,
 							'type': market_type,
 						}),
-						ex=ODDS_EXPIRATION_TIME,
+						ex=ODDS_TTL,
 					)
 				except NormalizationError as e:
 					self.logger.warning(f'{e} ({self.league})')
@@ -213,8 +213,8 @@ class DraftKingsClient(SportsbookClient):
 					if prev_hash != primary_hash:
 						# Odds data have changed, cache odds and update DB
 						props.append(prop_data)
-						self.redis.set(redis_key, json.dumps(prop_data), ex=ODDS_EXPIRATION_TIME)
-						self.redis.set(redis_hash_key, primary_hash, ex=ODDS_EXPIRATION_TIME)
+						self.redis.set(redis_key, json.dumps(prop_data), ex=ODDS_TTL)
+						self.redis.set(redis_hash_key, primary_hash, ex=ODDS_TTL)
 						self.logger.info(f'scraped {format_odds(prop_data)} for {event_key}')
 
 				except NormalizationError as e:
