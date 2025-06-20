@@ -1,15 +1,18 @@
 import json
 from datetime import datetime, timedelta
 from dateutil import tz
+
 from .base import SportsbookClient
-from scraper.tasks import batch_upsert_events
+
+from common.utils.sportsbook import (
+    create_event_key, generate_data_hash, normalize_status_name, normalize_team_name
+)
 from common.constants.urls import ESPN_URLS
 from common.constants.sportsbook import EVENT_TTL, EVENT_STATUSES
-from common.utils import (
-	normalize_team_name, normalize_status_name, create_event_key, 
-	utc_to_cst, generate_data_hash,
-)
+from common.utils.time import utc_to_cst
 from common.exceptions import NormalizationError
+
+from scraper.tasks import batch_upsert_events
 
 class ESPNClient(SportsbookClient):
 	def __init__(self, league):

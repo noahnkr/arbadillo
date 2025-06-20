@@ -1,13 +1,18 @@
 import json
+
 from .base import SportsbookClient
-from scraper.tasks import batch_upsert_odds
+
+from common.utils.strings import extract_float
+from common.utils.sportsbook import (
+    create_event_key, create_market_key, format_odds, generate_data_hash, 
+    normalize_market_name, normalize_team_name,
+)
 from common.constants.urls import DRAFTKINGS_URLS
 from common.constants.sportsbook import EVENT_TTL, ODDS_TTL, PRIMARY_MARKETS
-from common.utils import (
-	normalize_team_name, normalize_market_name, create_event_key, 
-	generate_data_hash, create_market_key, utc_to_cst, format_odds, extract_float
-)
+from common.utils.time import utc_to_cst
 from common.exceptions import NormalizationError
+
+from scraper.tasks import batch_upsert_odds
 
 class DraftKingsClient(SportsbookClient):
 

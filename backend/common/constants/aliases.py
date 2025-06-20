@@ -1,5 +1,5 @@
 import re
-from common.utils import clean_str
+from common.utils.strings import clean_str
 
 # ---------- Teams ----------
 
@@ -267,6 +267,7 @@ TEAM_ALIASES = {
 REVERSE_TEAM_LOOKUP = {}
 for league, league_aliases in TEAM_ALIASES.items():
     for standard, aliases in league_aliases.items():
+        REVERSE_TEAM_LOOKUP[(league, standard)] = standard
         for alias in aliases:
             REVERSE_TEAM_LOOKUP[(league, clean_str(alias))] = standard
 
@@ -825,7 +826,7 @@ MARKET_OVER_UNDER_REGEX = r'''
 '''
 MARKET_OVER_UNDER_PATTERN = re.compile(MARKET_OVER_UNDER_REGEX, re.IGNORECASE | re.VERBOSE)
 
-MARKET_SCOPE_INCLUDED = re.compile(r'^(?P<scope>.+)\s-\s(?P<market>.+)$')
+MARKET_SCOPE_INCLUDED_PATTERN = re.compile(r'^(?P<scope>.+)\s-\s(?P<market>.+)$')
 
 # ---------- Statuses ----------
 

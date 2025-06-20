@@ -1,17 +1,20 @@
 import json
 import re
+
 from .base import SportsbookClient
-from scraper.tasks import batch_upsert_odds
-from common.constants.urls import FANDUEL_URLS
-from common.constants.sportsbook import (
-    EVENT_TTL, ODDS_TTL, PRIMARY_MARKETS,
+
+from common.utils.strings import extract_float, extract_text
+from common.utils.sportsbook import (
+    create_event_key, create_market_key, format_odds, generate_data_hash, 
+    normalize_market_name, normalize_status_name, normalize_team_name,
 )
-from common.utils import (
-    normalize_team_name, normalize_market_name, create_event_key, generate_data_hash, 
-    create_market_key, utc_to_cst, format_odds, normalize_status_name, extract_float, extract_text,
-)
+from common.utils.time import utc_to_cst
 from common.exceptions import NormalizationError
-from common.playwright_manager import PlaywrightSessionManager
+from common.constants.urls import FANDUEL_URLS, FANDUEL_AUTH_TOKEN
+from common.constants.sportsbook import EVENT_TTL, ODDS_TTL, PRIMARY_MARKETS
+from common.utils.client import PlaywrightSessionManager
+
+from scraper.tasks import batch_upsert_odds
 
 class FanDuelClient(SportsbookClient):
 
@@ -33,10 +36,10 @@ class FanDuelClient(SportsbookClient):
                 'referer': 'https://sportsbook.fanduel.com',
             }
             params = {
-                '_ak': 'FhMFpcPWXMeyZxOx',
+                '_ak': FANDUEL_AUTH_TOKEN,
                 'timezone': 'America%2FChicago'
             }
-            data = self.fetch_data(url, headers=headers, params=params, session=self.session)
+            data = self.fetch_data(url, headers=headers, params=params, method='playwright_request', session=self.session)
             event_count = len(data.get('attachments', {}).get('events', {}).values())
             self.logger.info(f'fetched {event_count} events ({self.league})')
         except Exception as e:
@@ -87,10 +90,10 @@ class FanDuelClient(SportsbookClient):
                 'referer': 'https://sportsbook.fanduel.com',
             }
             params = {
-                '_ak': 'FhMFpcPWXMeyZxOx',
+                '_ak': FANDUEL_AUTH_TOKEN,
                 'timezone': 'America%2FChicago'
             }
-            data = self.fetch_data(url, headers=headers, params=params, session=self.session)
+            data = self.fetch_data(url, headers=headers, params=params, method='playwright_request', session=self.session)
             market_count = len(data.get('attachments', {}).get('markets', {}).values())
             self.logger.info(f'fetched {market_count} markets ({self.league})')
         except Exception as e:
@@ -155,11 +158,11 @@ class FanDuelClient(SportsbookClient):
                     'referer': 'https://sportsbook.fanduel.com',
                 }
                 params = {
-                    '_ak': 'FhMFpcPWXMeyZxOx',
+                    '_ak': FANDUEL_AUTH_TOKEN,
                     'eventId': event_id,
                     'tab': 'same-game-parlay' if status == 'upcoming' else 'live-sgp'
                 }
-                prop_data = self.fetch_data(url, headers=headers, params=params, session=self.session)
+                prop_data = self.fetch_data(url, headers=headers, params=params, method='playwright_request', session=self.session)
                 market_count = len(prop_data.get('attachments', {}).get('markets', {}))
                 self.logger.info(f'fetched {market_count} markets for {event_key} ({self.league})')
             except Exception as e:

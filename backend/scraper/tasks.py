@@ -2,7 +2,7 @@ import logging
 from celery import shared_task, group, chord
 from django.utils.timezone import now
 from common.constants.sportsbook import LEAGUES, SPORTSBOOK_CLIENTS
-from common.utils import get_client
+from common.utils.client import get_client
 from .models import Event, Odds
 
 logger = logging.getLogger(__name__)
