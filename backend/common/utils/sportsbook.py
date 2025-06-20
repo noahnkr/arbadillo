@@ -1,36 +1,13 @@
-from common.constants.sportsbook import SPORTS_LEAGUES, CLIENT_MAP
-from common.constants.aliases import (
-    REVERSE_TEAM_LOOKUP, REVERSE_MARKET_LOOKUP, EVENT_STATUS_ALIASES, ODDS_STATUS_ALIASES, 
-    MARKET_EXACT_RESULT_PATTERN, MARKET_OVER_UNDER_PATTERN, MARKET_SCOPE_INCLUDED_PATTERN,
-)
-from common.exceptions import NormalizationError
-from datetime import datetime
-from dateutil import tz
-import importlib
 import hashlib
 import json
-import re
 
-# ---------- String Helpers -----------
-
-def extract_float(raw: str) -> float | None:
-    """Extracts the first numeric value from a string and returns it as a float."""
-    match = re.search(r'\d+(?:\.\d+)?', raw)
-    return float(match.group()) if match else None
-
-
-def extract_text(raw: str) -> str | None:
-    """Extracts the first alpha values from a string."""
-    match = re.search(r'[a-z\s]*', raw)
-    return float(match.group().strip()) if match else None
-
-def clean_str(raw: str) -> str:
-    """Trim and normalize input string extracted from web and JSON"""
-    raw = re.sub(r"[-_e/\\]", " ", raw)
-    raw = re.sub(r"\s+", " ", raw)
-    return raw.strip().lower()
-
-# ---------- Sportsbook Helpers -----------
+from common.utils.strings import clean_str
+from common.constants.aliases import (
+    EVENT_STATUS_ALIASES, MARKET_EXACT_RESULT_PATTERN, MARKET_OVER_UNDER_PATTERN, 
+    MARKET_SCOPE_INCLUDED_PATTERN, ODDS_STATUS_ALIASES, REVERSE_MARKET_LOOKUP, REVERSE_TEAM_LOOKUP
+)
+from common.constants.sportsbook import SPORTS_LEAGUES
+from common.exceptions import NormalizationError
 
 def create_event_key(league: str, date: str, away:str, home:str) -> str:
     """Generate event key (primary ID) for database and Redis."""
@@ -220,53 +197,5 @@ def format_odds(odds_data: dict) -> str:
         odds_str = f'{team_or_player}{seperator}{outcome} {market} ({value})'
     else:
         raise NormalizationError(f'Unknown market type for `{market}`')
-    
+
     return odds_str
-
-# ---------- Time Helpers -----------
-
-def current_timestamp() -> str:
-    """Return current UTC timestamp as ISO string."""
-    central = tz.gettz('America/Chicago')
-    return datetime.now(tz=central).isoformat()
-
-
-def utc_to_cst(time: str) -> str:
-    """Converts a time string in UTC to CST."""
-    from_zone = tz.gettz('UTC')
-    to_zone = tz.gettz('America/Chicago')
-
-    # Handle different datetime formats
-    try:
-        utc = datetime.strptime(time, '%Y-%m-%dT%H:%MZ')
-    except Exception:
-        # Remove ms if present
-        if '.' in time:
-            time = time.split('.')[0] + 'Z'
-        utc = datetime.strptime(time, '%Y-%m-%dT%H:%M:%SZ')
-    
-    utc = utc.replace(tzinfo=from_zone)
-    central = utc.astimezone(to_zone)
-    return datetime.strftime(central, '%Y-%m-%dT%H:%MZ')
-
-
-def time_diff_minutes(t1: str, t2: str) -> float:
-    """Return time diff in minutes between two ISO timestamps."""
-    dt1 = datetime.fromisoformat(t1)
-    dt2 = datetime.fromisoformat(t2)
-    return abs((dt1 - dt2).total_seconds()) / 60.0
-
-# ---------- Import Helpers ----------
-
-def get_class_from_path(path: str):
-    module_path, class_name = path.rsplit('.', 1)
-    module = importlib.import_module(module_path)
-    return getattr(module, class_name)
-
-
-def get_client(sportsbook: str, league: str):
-    class_path = CLIENT_MAP.get(sportsbook.lower())
-    if not class_path:
-        raise ValueError(f'No client found for sportsbook: {sportsbook}')
-    ClientClass = get_class_from_path(class_path)
-    return ClientClass(league)
