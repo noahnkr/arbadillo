@@ -1,8 +1,10 @@
-from abc import ABC, abstractmethod
-from django.conf import settings
-from redis import Redis
 import logging
 import requests
+
+from abc import ABC, abstractmethod
+from django.conf import settings
+from urllib.parse import urlencode
+from redis import Redis
 
 class SportsbookClient(ABC):
 
@@ -18,20 +20,41 @@ class SportsbookClient(ABC):
         self.logger = logging.getLogger(f'scraper.apiclients.{self.name}')
 
 
-    def fetch_data(self, url, headers=None, params=None, session=None):
+    def fetch_data(self, url, headers=None, params=None, method='requests', session=None, page=None):
         default_headers = {
-            'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
 		}
         final_headers = { **default_headers, **(headers or {}) }
 
-        if session:
-            response = session.context.request.get(url, headers=final_headers, params=params)
-            return response.json()
-        else:
+        if method == 'requests':
             response = requests.get(url, headers=final_headers, params=params)
             response.raise_for_status()
             return response.json()
+        elif method == 'playwright_request':
+            if not session:
+                raise ValueError('Playwright session is required for method=`playwright_request`')
+            response = session.context.request.get(url, headers=final_headers, params=params)
+            return response.json()
+        elif method == 'page_evaluate_fetch':
+            if not page:
+                raise ValueError('Playwright page is required for method=`page_evaluate_fetch`')
+
+            query_str = '?' + urlencode(params or {}, doseq=True)
+            js  = f"""
+                async () => {{
+                    const res = await fetch("{url}{query_str}", {{
+                        method: 'GET',
+                        headers: {final_headers}
+                    }});
+                    return await res.json();
+                }}
+            """
+            return page.evaluate(js)
+        
+        else:
+            raise ValueError(f'Unknown method: {method}')
 
 
     @abstractmethod
