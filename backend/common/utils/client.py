@@ -10,12 +10,12 @@ def get_class_from_path(path: str):
     return getattr(module, class_name)
 
 
-def get_client(sportsbook: str, league: str):
+def get_client(sportsbook: str, sport: str, league: str):
     class_path = CLIENT_MAP.get(sportsbook.lower())
     if not class_path:
-        raise ValueError(f'No client found for sportsbook: {sportsbook}')
+        raise ValueError(f'No client found for sportsbook `{sportsbook}`')
     ClientClass = get_class_from_path(class_path)
-    return ClientClass(league)
+    return ClientClass(sport, league)
 
 
 class PlaywrightSessionManager:
