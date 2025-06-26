@@ -17,6 +17,7 @@ def get_client(sportsbook: str, league: str):
     ClientClass = get_class_from_path(class_path)
     return ClientClass(league)
 
+
 class PlaywrightSessionManager:
     _instance = None
 
@@ -28,19 +29,31 @@ class PlaywrightSessionManager:
 
 
     @classmethod
-    def get_instance(cls):
-        if cls._instance is None:
+    def get_instance(cls, force_new=False):
+        if cls._instance is None or force_new:
+            if cls._instance:
+                cls.shutdown()
             cls._instance = PlaywrightSessionManager()
         return cls._instance
-    
+
 
     @classmethod
-    def get_cookies(cls):
-        if cls._instance:
-            cookies = cls._instance.context.cookies()
-            cookie_header = '; '.join(f"{c['name']}={c['value']}" for c in cookies)
-            return cookie_header
-        return None
+    def new_page(cls, force_context=False):
+        if force_context:
+            cls.get_instance(force_new=True)
+        elif cls._instance is None:
+            cls.get_instance()
+        return cls._instance.context.new_page()
+
+
+    @classmethod
+    def get_cookies(cls, force_new=False):
+        if cls._instance is None or force_new:
+            cls.get_instance(force_new=True)
+            cls._instance.page.wait_for_timeout(3000)
+
+        cookies = cls._instance.context.cookies()
+        return '; '.join(f"{c['name']}={c['value']}" for c in cookies)
 
 
     @classmethod
