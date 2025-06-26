@@ -58,19 +58,6 @@ services:
         container_name: redis
         ports:
             - '6379:6379'
-    scraper:
-        build:
-            context: ./backend
-        container_name: scraper
-        working_dir: /app/scraper
-        volumes:
-            - ./backend:/app
-        entrypoint: ['/bin/bash']
-        tty: true
-        env_file:
-            - .env
-        depends_on:
-            - redis
 
     db:
         image: postgres:15
