@@ -1,9 +1,10 @@
 import logging
 from celery import shared_task, group, chord
 from django.utils.timezone import now
-from common.constants.sportsbook import LEAGUES, SPORTSBOOK_CLIENTS
+from ..sportsdata.models import Event
+from common.constants.sportsbook import SPORTSBOOK_CLIENTS, CLIENT_LEAGUES
 from common.utils.client import get_client
-from .models import Event, Odds
+from .models import Odds
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ def run_initial_scrape():
 	chord(
 		group(
 			launch_client.s('espn', mode='schedule', league=lg)
-			for lg in LEAGUES
+			for lg in CLIENT_LEAGUES
 		),
 		collect_initial_sportsbook_schedule.si()
 	).apply_async()
@@ -54,7 +55,7 @@ def collect_initial_sportsbook_schedule():
 		group(
 			launch_client.s(sbook, mode='schedule', league=lg)
 			for sbook in SPORTSBOOK_CLIENTS
-			for lg in LEAGUES
+			for lg in CLIENT_LEAGUES
 		),
 		collect_initial_sportsbook_odds.si()
 	).apply_async()
@@ -79,7 +80,7 @@ def collect_espn_schedule():
 	logger.info('collecting ESPN events...')
 	group(
 		launch_client.s('espn', mode='schedule', league=lg)
-		for lg in LEAGUES
+		for lg in CLIENT_LEAGUES
 	).apply_async()
 
 
@@ -89,7 +90,7 @@ def collect_sportsbook_schedule():
 	group(
 		launch_client.s(sbook, mode='schedule', league=lg)
 		for sbook in SPORTSBOOK_CLIENTS
-		for lg in LEAGUES
+		for lg in CLIENT_LEAGUES
 	).apply_async()
 
 
@@ -109,8 +110,29 @@ def collect_odds(mode, status):
 	group(
 		launch_client.s(sbook, mode=mode, league=lg, status=status)
 		for sbook in SPORTSBOOK_CLIENTS
-		for lg in LEAGUES
+		for lg in CLIENT_LEAGUES
 	).apply_async()
+
+
+@shared_task(queue='scraping')
+def export_all_client_markets(event_keys_by_league):
+	from common.constants.sportsbook import SPORTSBOOK_CLIENTS
+	from common.utils.client import get_client
+	import os
+
+	output_dir = 'market_exports'
+	os.makedirs(output_dir, exist_ok=True)
+
+	for league, event_keys in event_keys_by_league.items():
+		filepath = os.path.join(output_dir, f'{league}_markets.json')
+		export = []
+		for client_name in SPORTSBOOK_CLIENTS:
+			client = get_client(client_name, league)
+			export.append(client.export_markets(event_keys))
+
+		with open(filepath, 'w') as f:
+			import json
+			json.dump(export, f, indent=2)
 
 
 @shared_task(queue='database')
@@ -146,18 +168,23 @@ def batch_upsert_events(event_data: list):
 		logger.info(f'updated {len(to_update)} event rows.')
 
 
-
 @shared_task(queue='database')
 def batch_upsert_odds(odds_data: list):
 	"""Inserts or updates odds data in the database in bulk."""
 	to_create, to_update = [], []
 
+	lookup_keys = set(
+        (o['event_key'], o['market_key'], o['sportsbook'], o['outcome'])
+        for o in odds_data
+    )
+
 	existing_odds = {
-		(o.event_key, o.market_key, o.sportsbook, o.outcome): o
+		(o.event_key, o.market_key, o.sportsbook, o.outcome, o.player, o.team): o
 		for o in Odds.objects.filter(
-			event_key__in=[o['event_key'] for o in odds_data],
-			sportsbook__in=[o['sportsbook'] for o in odds_data],
-			outcome__in=[o['outcome'] for o in odds_data]
+			event_key__in={k[0] for k in lookup_keys},
+			market_key__in={k[1] for k in lookup_keys},
+			sportsbook__in={k[2] for k in lookup_keys},
+			outcome__in={k[3] for k in lookup_keys},
 		)
 	}
 
@@ -178,10 +205,10 @@ def batch_upsert_odds(odds_data: list):
 		if existing:
 			has_changes = any(
 				getattr(existing, field) != odds[field]
-				for field in ['market', 'outcome', 'line', 'value', 'team', 'player']
+				for field in ['value', 'status']
 			)
 			if has_changes:
-				for field in ['market', 'outcome', 'line', 'value', 'team', 'player']:
+				for field in ['value', 'status']:
 					setattr(existing, field, odds[field])
 				existing.collected_at = now()
 				to_update.append(existing)
@@ -197,13 +224,14 @@ def batch_upsert_odds(odds_data: list):
                 value=odds['value'],
 				team=odds['team'],
                 player=odds['player'],
+				status=odds['status']
 			))
 
 	if to_create:
 		Odds.objects.bulk_create(to_create)
 		logger.info(f'created {len(to_create)} odds rows.')
 	if to_update:
-		Odds.objects.bulk_update(to_update, ['market', 'outcome', 'line', 'value', 'team', 'player', 'collected_at'])
+		Odds.objects.bulk_update(to_update, ['value', 'status', 'collected_at'])
 		logger.info(f'updated {len(to_update)} odds rows.')
 
 				
