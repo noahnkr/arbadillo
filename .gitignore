@@ -10,7 +10,7 @@ migrations/
 *.json
 
 # Environment Variables
-venv/
+env/
 .env
 
 # Celery Beat

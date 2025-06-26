@@ -13,7 +13,8 @@
 -   [x] Normalize missed player prop market names
 -   [x] Convert yes/no props -> over/under 0.5
 -   [x] Add status indicator to odds if they got locked
--   [ ] Implement ESPNBet scraping from TheScore's API
+-   [x] Implement ESPNBet scraping from TheScore's API
+-   [ ] Figure out how to fetch data from BetMGM while in headless mode
 
 ## Database
 

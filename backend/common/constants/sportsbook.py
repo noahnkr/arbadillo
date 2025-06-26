@@ -4,14 +4,14 @@ SPORTSBOOKS = { 'espnbet', 'fanduel', 'draftkings', 'betmgm', 'bet365', 'caesars
 
 SPORTS = { 'football', 'basketball', 'baseball', 'soccer', 'hockey', }
 
-LEAGUES = { 'nfl', 'nba', 'mlb', 'mls', 'nhl', 'ncaaf', 'ncaab', 'ncaaw', }
+LEAGUES = { 'nfl', 'nba', 'mlb', 'mls', 'nhl', 'ncaaf', 'ncaab', 'ncaaw' }
 
 SPORTS_LEAGUES = {
-    'football': ['nfl', 'ncaaf',],
-    'basketball': ['nba', 'ncaab', 'ncaaw',],
-    'baseball': ['mlb',],
-    'soccer': ['mlb'],
-    'hockey': ['nhl',],
+    'football': {'nfl', 'ncaaf',},
+    'basketball': {'nba', 'ncaab', 'ncaaw',},
+    'baseball': {'mlb',},
+    'soccer': {'mls'},
+    'hockey': {'nhl',},
 }
 
 EVENT_STATUSES = { 'upcoming', 'active', 'completed' }
@@ -26,11 +26,12 @@ MARKET_TYPES = { 'moneyline', 'spread', 'total', 'over_under', 'yes_no', }
 
 SPORTSBOOK_CLIENTS = { 'espnbet', 'draftkings', 'fanduel', }
 
+CLIENT_LEAGUES = { 'mlb', }
+
 CLIENT_MAP = {
-    'espn': 'scraper.apiclients.espn.ESPNClient',
-    'espnbet': 'scraper.apiclients.espnbet.ESPNBetClient',
-    'draftkings': 'scraper.apiclients.draftkings.DraftKingsClient',
-    'fanduel': 'scraper.apiclients.fanduel.FanDuelClient',
+    'espnbet': 'oddsdata.apiclients.espnbet.ESPNBetClient',
+    'draftkings': 'oddsdata.apiclients.draftkings.DraftKingsClient',
+    'fanduel': 'oddsdata.apiclients.fanduel.FanDuelClient',
 }
 
 # ---------- Redis TTLs ----------

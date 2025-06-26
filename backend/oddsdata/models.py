@@ -1,22 +1,12 @@
 from django.db import models
 
-class Event(models.Model):
-    event_key = models.CharField(max_length=255, unique=True)
-    league = models.CharField(max_length=50)
-    start_time = models.DateTimeField()
-    away = models.CharField(max_length=100)
-    home = models.CharField(max_length=100)
-    collected_at = models.DateTimeField(auto_now_add=True)
-
-    event_status_choices = {
-        'upcoming': 'upcoming',
-        'active': 'active',
-        'concluded': 'concluded',
-    }
-    status = models.CharField(max_length=20, choices=event_status_choices)
-
+from sportsdata.models import Event
 
 class Odds(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = 'active', 'Active'
+        SUSPENDED = 'suspended', 'Suspended'
+
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='odds')
     event_key = models.CharField(max_length=100)
     market_key = models.CharField(max_length=100)
@@ -27,13 +17,8 @@ class Odds(models.Model):
     value = models.FloatField()
     team = models.CharField(max_length=100, null=True, blank=True)
     player = models.CharField(max_length=100, null=True, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
     collected_at = models.DateTimeField(auto_now_add=True)
  
-    odds_status_choices = {
-        'active': 'active',
-        'suspended': 'suspended'
-    }
-    status = models.CharField(choices=odds_status_choices)
-
     class Meta:
         unique_together = ('event_key', 'market_key', 'sportsbook', 'outcome')

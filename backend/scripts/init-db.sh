@@ -22,8 +22,5 @@ python manage.py makemigrations scraper
 python manage.py makemigrations django_celery_beat
 python manage.py migrate
 
-# Trigger initial scraping task
-python -c "from scraper.tasks import run_initial_scrape; run_initial_scrape.delay()"
-
 # Start server
 python manage.py runserver 0.0.0.0:8000
