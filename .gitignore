@@ -1,4 +1,6 @@
+# Cache
 __pycache__/
+.pytest_cache/
 
 # Debug
 *.log
