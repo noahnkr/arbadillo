@@ -8,8 +8,8 @@ from dateutil import tz
 from redis import Redis
 from django.conf import settings
 
-from sportsdata.parsers.espn import parse_team, parse_event, parse_player
 from common.utils.sportsbook import create_event_key, generate_data_hash, normalize_status_name
+from common.utils.time import utc_to_cst
 from common.constants.sportsbook import EVENT_TTL, EVENT_STATUSES
 
 class ESPNClient:
@@ -36,7 +36,7 @@ class ESPNClient:
 
 	def get_teams(self) -> list:
 		raw = self._get('/teams')
-		teams = [parse_team(team['team']) for team in raw['sports'][0]['leagues'][0]['teams']]
+		teams = [self.parse_team(team['team']) for team in raw['sports'][0]['leagues'][0]['teams']]
 		for team in teams:
 			self.redis.sadd(f'teams:{self.league}', team['team_key'])
 			self.redis.set(f'teams:{self.league}:{team["team_key"]}', json.dumps(team))
@@ -56,7 +56,7 @@ class ESPNClient:
 		for days in range(0, 7):
 			date = (datetime.now(tz=central) + timedelta(days=days)).strftime('%Y%m%d')
 			raw = self._get('/scoreboard', params={'date': date})
-			raw_events.extend(parse_event(event, self.league) for event in raw['events'])
+			raw_events.extend(self.parse_event(event, self.league) for event in raw['events'])
 		
 		events = []
 		for event in raw_events:
@@ -64,9 +64,11 @@ class ESPNClient:
 			home_team_key = self.redis.get(f'teams:keys:{self.league}:{event["home_team_id"]}')
 
 			if not away_team_key or not home_team_key:
-				self.logger.warning(f'Missing team(s) cache for espn event id={event["espn_id"]} ({self.league})')
+				self.logger.warning(f'Missing team(s) for ESPN event id {event["espn_id"]} ({self.league})')
+				continue
 
-			start_date = event['start_time'].split('T')[0]
+			start_time = utc_to_cst(event['start_time'])
+			start_date = start_time.split('T')[0]
 			event_key = create_event_key(self.league, start_date, away_team_key, home_team_key)
 
 			status = normalize_status_name(event['status'], is_odds=False)
@@ -101,14 +103,16 @@ class ESPNClient:
 	
 	def get_roster(self, team_id) -> list:
 		raw = self._get(f'/teams/{team_id}/roster')
-		raw_players = [parse_player(player) for position in raw['athletes'] for player in position['items']]
+		raw_players = [self.parse_player(player) for position in raw['athletes'] for player in position['items']]
 
 		players = []
 		for player in raw_players:
+			self.redis.sadd(f'players:{self.league}', player['name'])
 			team_key  = self.redis.get(f'teams:keys:{self.league}:{team_id}')
 
 			if not team_key:
-				self.logger.warning(f'Missing team cache for espn player id={player["espn_id"]} ({self.league})')
+				self.logger.warning(f'Missing team for ESPN player id {player["espn_id"]} ({self.league})')
+				continue
 
 			player_data = {'team_key': team_key, **player}
 
@@ -124,3 +128,39 @@ class ESPNClient:
 		
 		self.logger.info(f'Scraped {len(players)} player(s) ({self.league})')
 		return players
+
+	def parse_team(self, team_json, league):
+		aliases = [
+			team_json['slug'], team_json['abbreviation'], team_json['displayName'],
+			team_json['shortDisplayName'], team_json['name'], team_json['nickname'],
+			f'{team_json["abbreviation"]} {team_json["name"]}'
+		]
+		return {
+			'espn_id': team_json['id'],
+			'league': league,
+			'team_key': team_json['slug'],
+			'name': team_json['displayName'],
+			'aliases': aliases
+		}
+
+
+	def parse_event(self, event_json, league):
+		return {
+			'espn_id': event_json['id'],
+			'league': league,
+			'away_team_id': event_json['competitions'][0]['competitors'][0]['id'],
+			'home_team_id': event_json['competitions'][0]['competitors'][1]['id'],
+			'start_time': event_json['date'],
+			'status': event_json['status']['type']['state']
+		}
+
+
+	def parse_player(self, player_json, league):
+		return {
+			'espn_id': player_json['id'],
+			'league': league,
+			'name': player_json['displayName'],
+			'player_key': player_json['slug'],
+			'position': player_json['position']['name']
+		}
+		
