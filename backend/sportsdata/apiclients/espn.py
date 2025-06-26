@@ -73,4 +73,4 @@ class ESPNClient(SportsClient):
 			except Exception as e:
 				self.logger.exception(f'an error occured while scraping events ({self.league}): {e}')
 
-		self.upsert_data(events, is_odds=False)
+		self.upsert_events(events)

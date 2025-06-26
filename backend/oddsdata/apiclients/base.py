@@ -97,12 +97,12 @@ class OddsClient(ABC):
             return False
 
 
-    def upsert_odds(self, data):
-        if not data:
+    def upsert_odds(self, odds_data):
+        if not odds_data:
             self.logger.info(f'no new odds to upsert ({self.league})')
         else:
-            self.logger.info(f'upserting {len(data)} odds ({self.league})')
-            batch_upsert_odds.delay(data)
+            self.logger.info(f'upserting {len(odds_data)} odds ({self.league})')
+            batch_upsert_odds.delay(odds_data)
 
 
     def parse_selection(self, event_key, market_name, outcome_name, line=None, value=0, team=None, player=None,  status='active'):
