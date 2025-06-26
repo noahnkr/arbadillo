@@ -68,7 +68,7 @@ class DraftKingsClient(OddsClient):
 			return
 
 		odds = self._parse_markets_and_selections(data, status)
-		self.upsert_data(odds)
+		self.upsert_odds(odds)
 	
 
 	def parse_props(self, status):
@@ -97,7 +97,7 @@ class DraftKingsClient(OddsClient):
 			
 			odds.extend(self._parse_markets_and_selections(data, status))
 		
-		self.upsert_data(odds)
+		self.upsert_odds(odds)
 
 
 	def _parse_markets_and_selections(self, data, status):

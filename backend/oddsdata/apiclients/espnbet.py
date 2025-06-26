@@ -157,7 +157,7 @@ class ESPNBetClient(OddsClient):
             except Exception as e:
                 self.logger.exception(f'an error occured while scraping primary markets ({self.league}): {e}')
         
-        self.upsert_data(odds)
+        self.upsert_odds(odds)
     
 
     def parse_props(self, status):
@@ -245,7 +245,7 @@ class ESPNBetClient(OddsClient):
                 except Exception as e:
                     self.logger.exception(f'an error occured while scraping prop markets ({self.league}): {e}')
             
-        self.upsert_data(odds)
+        self.upsert_odds(odds)
                         
  
     def export_markets(self, event_keys=[]):

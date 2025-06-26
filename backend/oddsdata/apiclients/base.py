@@ -12,7 +12,7 @@ from common.utils.sportsbook import (
     create_market_key
 )
 from common.constants.sportsbook import EVENT_TTL, ODDS_TTL
-from oddsdata.tasks import batch_upsert_events, batch_upsert_odds
+from oddsdata.tasks import batch_upsert_odds
 
 class OddsClient(ABC):
 
@@ -97,15 +97,12 @@ class OddsClient(ABC):
             return False
 
 
-    def upsert_data(self, data, is_odds=True):
+    def upsert_odds(self, data):
         if not data:
-            self.logger.info(f'no new {"odds" if is_odds else "events"} to upsert ({self.league})')
-        elif is_odds:
+            self.logger.info(f'no new odds to upsert ({self.league})')
+        else:
             self.logger.info(f'upserting {len(data)} odds ({self.league})')
             batch_upsert_odds.delay(data)
-        else:
-            self.logger.info(f'upserting {len(data)} events ({self.league})')
-            batch_upsert_events.delay(data)
 
 
     def parse_selection(self, event_key, market_name, outcome_name, line=None, value=0, team=None, player=None,  status='active'):
