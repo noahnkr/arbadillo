@@ -1,8 +1,3 @@
-ESPN_URLS = {
-    'nba': 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard',
-    'mlb': 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard',
-}
-
 ESPNBET_URLS = {
     'base': 'https://sportsbook-tsb.ca-default.thescore.bet/graphql/persisted_queries/4e63acef22373225db328b8fc6534a998cd73a90745758017559fa4b43e1fe66',
     'nba': '/sport/basketball/organization/united-states/competition/nba',
