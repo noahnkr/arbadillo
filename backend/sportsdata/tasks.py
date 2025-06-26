@@ -1,73 +1,78 @@
 import logging
 
-from oddsdata.tasks import logger
-from sportsdata.models import Team, Event
-
 from celery import shared_task
-from django.utils.timezone import now
+from django.utils.dateparse import parse_datetime
+
+from sportsdata.models import Team, Player, Event
+from sportsdata.apiclients.espn import ESPNClient
 
 logger = logging.getLogger(__name__)
 
-@shared_task
-def batch_upsert_events(event_data):
-	to_create, to_update = [], []
+@shared_task(queue='scraping')
+def sync_teams(sport: str, league: str):
+	client = ESPNClient(sport, league)
+	teams = client.get_teams()
 
-	event_keys = [e['event_key'] for e in event_data]
-	existing_events = {
-		e.event_key: e
-		for e in Event.objects.filter(event_key__in=event_keys)
-	}
+	logger.info(f'Upserting {len(teams)} team(s)')
+	for team in teams:
+		Team.objects.update_or_create(
+			team_key=team['team_key'],
+			defaults={
+				'espn_id': team['espn_id'],
+				'league': team['league'],
+				'name': team['name'],
+				'aliases': team['aliases'],
+			}
+		)
 
-	team_keys = set()
-	for e in event_data:
-		team_keys.add(e['away_team_key'])
-		team_keys.add(e['home_team_key'])
 
-	teams = {
-		t.team_key: t
-		for t in Team.objects.filter(team_key__in=team_keys)
-	}
+@shared_task(queue='scraping')
+def sync_schedule(sport: str, league: str):
+	client = ESPNClient(sport, league)
+	events = client.get_schedule()
 
-	for event in event_data:
-		away_team = teams.get(event['away_team_key'])
-		home_team = teams.get(event['home_team_key'])
+	logger.info(f'Upserting {len(events)} event(s)')
+	for event in events:
+		try:
+			away_team = Team.objects.get(team_key=event['away_team_key'])
+			home_team = Team.objects.get(team_key=event['home_team_key'])
 
-		if not away_team or not home_team:
-			logger.warning(f'Missing team(s) for event_key={event["event_key"]}')
-		
-		existing = existing_events.get(event['event_key'])
-		if existing:
-			has_changes = (
-				existing.league != event['league'] or
-				existing.away_team != away_team or
-				existing.home_team != home_team or
-				existing.start_time != event['start_time'] or
-				existing.status != event['statuts']
-			)
-			if has_changes:
-				existing.league = event['league']
-				existing.away_team = away_team
-				existing.home_team = home_team
-				existing.start_time = event['start_time']
-				existing.status = event['status']
-				existing.updated_at = now()
-				to_update.append(existing)
-		else:
-			to_create.append(Event(
+			Event.objects.update_or_create(
 				event_key=event['event_key'],
-				league=event['league'],
-				away_team=away_team,
-				home_team=home_team,
-				start_time=event['start_time'],
-				status=event['status'],
-				collected_at=now(),
-				updated_at=now()
-			))
-	
-	if to_create:
-		Event.objects.bulk_create(to_create)
-		logger.info(f'Created {len(to_create)} new event(s).')
+				defaults={
+					'espn_id': event['espn_id'],
+					'league': event['league'],
+					'away_team': away_team,
+					'home_team': home_team,
+					'start_time': parse_datetime(event['start_time']),
+					'status': event['status'],
+				}
+			)
+		except Team.DoesNotExist:
+			logger.warning(f'Missing team(s) record for event {event["event_key"]} ({league})')
+			continue
 
-	if to_update:
-		Event.objects.bulk_update(to_update, ['league', 'away_team', 'home_team', 'start_time', 'status', 'updated_at'])
-		logger.info(f'Updated {len(to_update)} existing event(s).')
+
+@shared_task(queue='scraping')
+def sync_players(sport: str, league: str, team_id: str):
+	client = ESPNClient(sport, league)
+	players = client.get_roster(team_id)
+
+	logger.info(f'Upserting {len(players)} player(s)')
+	for player in players:
+		try:
+			team = Team.objects.get(team_key=player['team_key'])
+
+			Player.objects.update_or_create(
+				espn_id=player['espn_id'],
+				defaults={
+					'league': player['league'],
+					'name': player['name'],
+					'team': team,
+					'player_key': player['player_key'],
+					'position': player['position'],
+				}
+			)
+		except Team.DoesNotExist:
+			logger.warning(f'Missing team record for player {player["name"]} ({league})')
+			continue
