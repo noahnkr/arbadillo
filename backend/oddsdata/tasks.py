@@ -136,39 +136,6 @@ def export_all_client_markets(event_keys_by_league):
 
 
 @shared_task(queue='database')
-def batch_upsert_events(event_data: list):
-	"""Inserts or updates event data in the database in bulk"""
-	to_create, to_update = [], []
-
-	existing_events = {
-		e.event_key: e
-		for e in Event.objects.filter(event_key__in=[e['event_key'] for e in event_data])
-	}
-
-	for event in event_data:
-		existing = existing_events.get(event['event_key'])
-		if existing:
-			has_changes = any(
-				getattr(existing, field) != event[field]
-				for field in ['league', 'start_time', 'away', 'home', 'status']
-			)
-			if has_changes:
-				for field in ['league', 'start_time', 'away', 'home', 'status']:
-					setattr(existing, field, event[field])
-				existing.collected_at = now()
-				to_update.append(existing)
-		else:
-			to_create.append(Event(**event))
-
-	if to_create:
-		Event.objects.bulk_create(to_create)
-		logger.info(f'created {len(to_create)} event rows.')
-	if to_update:
-		Event.objects.bulk_update(to_update, ['league', 'start_time', 'away', 'home', 'status', 'collected_at'])
-		logger.info(f'updated {len(to_update)} event rows.')
-
-
-@shared_task(queue='database')
 def batch_upsert_odds(odds_data: list):
 	"""Inserts or updates odds data in the database in bulk."""
 	to_create, to_update = [], []
