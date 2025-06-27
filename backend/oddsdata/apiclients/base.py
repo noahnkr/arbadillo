@@ -9,7 +9,7 @@ from redis import Redis
 
 from common.utils.sportsbook import (
     generate_data_hash, format_odds, normalize_market_name, normalize_market_outcome, 
-    correct_over_under_line, normalize_status_name, create_market_key,
+    correct_over_under_line, normalize_status_name, create_market_key, get_market_type
 )
 from common.constants.sportsbook import EVENT_TTL, ODDS_TTL
 from common.exceptions import NormalizationError
@@ -67,6 +67,7 @@ class SportsbookClient(ABC):
 
             else:
                 raise ValueError(f'Unknown method `{method}`')
+
         except Exception as e:
             self.logger.exception(f'An error occured while yielding request to {url}: {e} ({self.league})')
             return {}
@@ -91,8 +92,8 @@ class SportsbookClient(ABC):
             self.redis.set(redis_hash_key, odds_hash, ex=ODDS_TTL)
             self.logger.info(f'updated {format_odds(odds_data)} for {odds_data["event_key"]}')
             return True
-        else:
-            return False
+
+        return False
 
     def parse_selection(self, event_key, name, outcome, line=None, value=0, team=None, player=None,  status='active'):
         market_name, market_type, market_line, market_team, market_player = normalize_market_name(name, self.league)
@@ -107,25 +108,14 @@ class SportsbookClient(ABC):
         if not team:
             team = market_team if market_team else None
 
-        if team:
-            if not self.redis.exists(f'teams:aliases:{self.league}:{team}'):
-                raise NormalizationError(f'Unknown team {team} ({self.league})')
-            team = self.redis.get(f'teams:aliases:{self.league}:{team}') 
-
-            if self.redis.exists(f'teams:aliases:{self.league}:{outcome_name}'):
-                outcome_name = self.redis.get(f'teams:aliases:{self.league}:{outcome_name}')
-                team = None
+        if team and outcome_name == team:
+            team = None
     
-        if player and not self.redis.sismember(f'players:{self.league}', player):
-            raise NormalizationError(f'Unknown player {player} ({self.league})')
-
-
         value = float(round(value, 3))
         status = normalize_status_name(status)
-
         market_key = create_market_key(market_name, line, team, player)
 
-        return {
+        odds_data = {
 			'event_key': event_key,
 			'market_key': market_key,
 			'sportsbook': self.name,
@@ -138,18 +128,32 @@ class SportsbookClient(ABC):
 			'status': status
 		}
 
+        # Validate selection format
+        invalid_selection = (
+            (market_type in {'moneyline','spread'} and outcome_name not in self.redis.smembers(f'teams:{self.league}')) or
+            (market_type in {'spread','total','over_under'} and not line) or
+            (market_type in {'total','over_under'} and outcome not in {'over','under'}) or
+            (team and team not in self.redis.smembers(f'teams:{self.league}')) or
+            (player and player not in self.redis.smembers(f'players:{self.league}'))
+        )
+
+        if invalid_selection:
+            raise NormalizationError(f'Parsed selection is invalid: {format_odds(odds_data)} ({self.league})')
+
+        return odds_data
+
     @abstractmethod
-    def get_events():
+    def get_events(self):
         pass
 
     @abstractmethod
-    def get_markets():
+    def parse_events(self):
         pass
 
     @abstractmethod
-    def parse_events():
+    def get_markets(self, event_key):
         pass
 
     @abstractmethod
-    def parse_markets():
+    def parse_markets(self, event_key):
         pass

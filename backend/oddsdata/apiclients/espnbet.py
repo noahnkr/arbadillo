@@ -58,19 +58,6 @@ class ESPNBetClient(SportsbookClient):
         self.logger.info(f'Fetched {len(events)} events ({self.league})')
 
         return events
-    
-    def get_markets(self, event_key):
-        event_id = self.redis.get(f'{self.name}:ids:{event_key}')
-        if not event_id:
-            self.logger.warning(f'Unknown event id for {event_key} ({self.league})')
-            return []
-
-        league_url = f'/sport/{self.sport}/organization/united-states/competition/{self.league}/event/{event_id}/sections/player_props',
-        data = self._get(league_url)
-
-        markets = data.get('sectionChildren', [])
-        self.logger.info(f'fetched {len(markets)} markets for {event_key} ({self.league})')
-        return markets
 
     def parse_events(self):
         events = self.get_events()
@@ -95,7 +82,20 @@ class ESPNBetClient(SportsbookClient):
                 self.match_espn_key(event_key, event_id)
 
             except Exception as e:
-                self.logger.exception(f'An error occured while parsing event data ({self.league}): {e}')
+                self.logger.exception(f'An error occured while parsing events ({self.league}): {e}') 
+
+    def get_markets(self, event_key):
+        event_id = self.redis.get(f'{self.name}:ids:{event_key}')
+        if not event_id:
+            self.logger.warning(f'Unknown event id for {event_key} ({self.league})')
+            return []
+
+        event_url = f'/sport/{self.sport}/organization/united-states/competition/{self.league}/event/{event_id}/sections/player_props',
+        data = self._get(event_url)
+
+        markets = data.get('sectionChildren', [])
+        self.logger.info(f'fetched {len(markets)} markets for {event_key} ({self.league})')
+        return markets
 
     def parse_markets(self, event_key):
         odds = []
@@ -132,9 +132,8 @@ class ESPNBetClient(SportsbookClient):
                             )
                             if self.compare_and_update_odds_cache(odds_data):
                                 odds.append(odds_data)
-                        except NormalizationError as e:
-                            self.logger.debug(e)
+
                         except Exception as e:
-                            self.logger.warning(f'An error occured while parsing markets for {event_key} ({self.league})')
+                            self.logger.exception(f'An error occured while parsing markets for {event_key} ({self.league}): {e}')
 
         return odds
