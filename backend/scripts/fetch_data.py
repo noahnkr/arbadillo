@@ -3,7 +3,6 @@ import argparse
 import requests
 from urllib.parse import urlencode
 from playwright.sync_api import sync_playwright
-from ..common.constants.urls import ESPNBET_URLS, ESPNBET_AUTH_TOKEN
 
 def fetch_data(url, headers=None, params=None, method='requests', context=None, page=None) -> dict:
     default_headers = {
@@ -48,34 +47,18 @@ def fetch_espnbet_data():
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
         page = context.new_page()
-        base_url = ESPNBET_URLS['base']
-        event_id = '94593739-217b-4d1f-b656-394a252c5655'
-        league_url = f'/sport/baseball/organization/united-states/competition/mlb'#/event/{event_id}/section/sgp'
-        cookies = context.cookies()
-        cookie_header = '; '.join(f"{c['name']}={c['value']}" for c in cookies)
+        url = 'https://sbapi.il.sportsbook.fanduel.com/api/content-managed-page?page=CUSTOM&customPageId=mlb'
         headers = {
-            'origin': 'https://thescore.bet',
-            'referer': 'https://thescore.bet',
-            'cookie': cookie_header,
-            'x-anonymous-authorization': ESPNBET_AUTH_TOKEN,
-        }
-        variables = {
-            'canonicalUrl': league_url,
-            'oddsFormat': 'AMERICAN',
-            'includeRichEvent': True,
-            'includeRecommendedProps': True,
-            'includeSectionDefaultField': True,
-            'includeTableMarketCard': True,
-            'pageType': 'PAGE',
+            'origin': 'https://sportsbook.fanduel.com',
+            'referer': 'https://sportsbook.fanduel.com',
         }
         params = {
-            'operationName': 'Marketplace',
-            'variables': json.dumps(variables),
+            '_ak': 'FhMFpcPWXMeyZxOx',
+            'timezone': 'America%2FChicago',
         }
+        data = fetch_data(url, headers=headers, params=params, method='playwright_request', context=context)
 
-        data = fetch_data(base_url, headers=headers, params=params, method='page_evaluate_fetch', page=page)
-
-        with open('espnbet-schedule-data.json', 'w') as f:
+        with open('fanduel-schedule-data.json', 'w') as f:
             json.dump(data, f, indent=2)
 
 if __name__ == '__main__':
