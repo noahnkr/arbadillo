@@ -202,6 +202,6 @@ def format_odds(odds_data: dict) -> str:
         seperator = ' ' if team_or_player else ''
         odds_str = f'{team_or_player}{seperator}{outcome} {market} ({value})'
     else:
-        raise NormalizationError(f'Unknown market type for `{market}`')
+        raise ValueError(f'Unknown market type for `{market}`')
 
     return odds_str
