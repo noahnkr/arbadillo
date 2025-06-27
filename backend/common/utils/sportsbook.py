@@ -3,7 +3,7 @@ import json
 
 from common.utils.strings import clean_str, extract_float
 from common.constants.aliases import (
-    REVERSE_MARKET_LOOKUP, REVERSE_TEAM_LOOKUP, EVENT_STATUS_ALIASES, ODDS_STATUS_ALIASES, 
+    REVERSE_MARKET_LOOKUP, EVENT_STATUS_ALIASES, ODDS_STATUS_ALIASES, 
     MARKET_REGEXES, PRIMARY_MARKET_REGEX, MARKET_OUTCOME_REGEXES,
 )
 from common.constants.sportsbook import SPORTS_LEAGUES, PRIMARY_MARKETS
@@ -56,14 +56,6 @@ def decimal_to_american(decimal_odds: float) -> int:
         american_odds = -100 / (decimal_odds - 1)
 
     return int(american_odds)
-
-
-def normalize_team_name(name: str, league: str) -> str:
-    """Normalizes a team name to a slugified standard."""
-    try:
-        return REVERSE_TEAM_LOOKUP[(league, clean_str(name))]
-    except KeyError:
-        raise NormalizationError(f'Unknown team name `{name}` for league `{league}`')
 
 
 def normalize_market_name(name: str, league: str) -> tuple[str, str, float | None, str | None, str | None]:
@@ -138,7 +130,6 @@ def normalize_market_outcome(market_outcome: str, market_type: str, league: str)
         line = match.groupdict().get('line', None)
 
         if market_type in {'moneyline', 'spread'}:
-            outcome = normalize_team_name(outcome, league)
             line = extract_float(line)
         elif market_type in {'total', 'over_under'}:
             if not outcome:
