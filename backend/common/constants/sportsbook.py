@@ -24,7 +24,7 @@ MARKET_TYPES = { 'moneyline', 'spread', 'total', 'over_under', 'yes_no', }
 
 # ---------- Clients ----------
 
-SPORTSBOOK_CLIENTS = { 'espnbet', 'draftkings', 'fanduel', }
+SPORTSBOOK_CLIENTS = { 'espnbet', 'fanduel', 'draftkings' }
 
 CLIENT_LEAGUES = { 'mlb', }
 
