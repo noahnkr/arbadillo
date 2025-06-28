@@ -4,7 +4,7 @@ from .base import SportsbookClient
 
 from common.utils.sportsbook import create_event_key, get_team_key
 from common.utils.time import utc_to_cst
-from common.utils.client import PlaywrightSessionManager
+from common.utils.client import get_browser
 from common.exceptions import NormalizationError
 
 class FanDuelClient(SportsbookClient):
@@ -13,7 +13,7 @@ class FanDuelClient(SportsbookClient):
 
     def __init__(self, sport: str, league: str):
         super().__init__('fanduel', sport, league)
-        self.session = PlaywrightSessionManager.get_instance()
+        self.context = get_browser().new_context()
     
     def _get(self, path, params):
         url = self.BASE_URL + path
@@ -27,7 +27,10 @@ class FanDuelClient(SportsbookClient):
             **params
         }
         return super()._get(
-            url, headers=headers, params=final_params, method='playwright_request', context=self.session.context
+            url, headers=headers,
+            params=final_params,
+            method='playwright_request',
+            context=self.context
         ).get('attachments', {})
     
     def get_events(self):
