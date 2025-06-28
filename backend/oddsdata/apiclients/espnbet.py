@@ -4,22 +4,22 @@ from .base import SportsbookClient
 
 from common.utils.sportsbook import create_event_key, get_team_key
 from common.utils.time import utc_to_cst
-from common.utils.client import PlaywrightSessionManager
+from common.utils.client import get_browser
 from common.exceptions import NormalizationError
 
 class ESPNBetClient(SportsbookClient):
-    BASE_URL = 'https://sportsbook-tsb.ca-default.thescore.bet/graphql/persisted_queries/4e63acef22373225db328b8fc6534a998cd73a90745758017559fa4b43e1fe66'
+    BASE_URL = 'https://sportsbook-tsb.ca-default.thescore.bet/graphql/persisted_queries/a10930c7eba26a588efb729298364a07aa4cdcd40d456dd061dee1355bfb8e86'
     AUTH_TOKEN = 'Bearer eyJhbGciOiJSU0EtT0FFUCIsImVuYyI6IkExMjhDQkMtSFMyNTYifQ.I90O69ULGH1ehEsPEpXv88G-0YYSnvlTKb2NL-38EvZU66NSOWsxWZXkOg4QpbAuyooucKAhMYmSwQmIJ2iEJ0U-NZP7upAyI1-riFZM26h5i5i58cXGDFqTYqU3sg6imTgsh0CFo_LsSwMAzcUAubpeCXH_TaPtHneme2jjPoYvo-fwt_OanVcMVqQnVwbd7rQktGDM-NBYQO2DQdegCA_n9lyQKeJHgoYgXnN426od2-MCVpc--E7fwz1-0fQo4eeaI0BEi3Oxaykxc3aPD4dtJA4CpGL9VKxe-DCa_A-e3TYGrzKRbtUgjlyHNAXtjP8XF6PBR3Dk2FG_VKyBZuZwQdSwtNT5cbi6OjSa-n32ArCXueqMygz_51Fc-kP34sU2mxC_XoN9bvSOXIu3iyLXZfVdGZOpRNwAMxH0yhmRx0KB89Vr9nSwbTAyqX693bnkIeNoaASK_iuptNXcVsg6HyE93xceTrT7ALmQrZW5Z0V2brTWNnhdgypRYy9fMxYb6Y0T3nbeuNvMSHtQUj5H9ZERJuhDk4oe7Eu6s-U2bfjSO9R2yxUs6i-VS58cqUPnK0HxSzSFiwVUYRu7x6ZLEW7ZXL5vgYe4A13uTc-CTyoJiIHi_xuHcPfUX2pHfXsVa-kcXBls_Bljr4NBNdhEzC3OS28K2H7sD4gv3T8.DAZz4Z6i1ZeSoknKSeNayA.3dlCcWPnwYjTpjirq3ml7b_3Ry_9Y9lev7sDh6yS-Ty_clXkn9ULinDnxVUQQYzIW69HFf7CKO6UmHO1tGgVPNjhCN9_nQbbRrv4GbcnhfHQ7-r6VdsscX7ikwKyGTfYPzHDWzUg6z8uZBd_llb747myH55kt_fpzUNEwd3y530-6NZ1MhZHymIG8htWzf-JvbcmU_ff7V15p6iMHByeSR11aJQ0nAhURlw0fTuvg9N4SSmMWh3I-Wg5YvvrmFq0kmsO71vxuSJABKnp7yG7FQ.LAZPf8A0B73LnIZIn40Fmw'
 
     def __init__(self, sport: str, league: str):
         super().__init__('espnbet', sport, league)
+        self.context = get_browser().new_context()
 
     def _get(self, path):
-        page = PlaywrightSessionManager.new_page(force_context=True)
+        page = self.context.new_page()
         headers = {
             'origin': 'https://thescore.bet',
             'referer': 'https://thescore.bet',
-            'cookie': page.context.cookies(),
             'x-anonymous-authorization': self.AUTH_TOKEN,
         }
         variables = {
@@ -44,7 +44,7 @@ class ESPNBetClient(SportsbookClient):
         ).get('data', {}).get('page', {}).get('defaultChild', {})
 
     def get_events(self):
-        league_url = f'/sport/{self.sport}/organization/united-states/competition/{self.league}',
+        league_url = f'/sport/{self.sport}/organization/united-states/competition/{self.league}'
         data = self._get(league_url)
         events_section = next(
             (s for s in data.get('sectionChildren', {}) if s.get('__typename', '') == 'MarketplaceShelf'),
@@ -92,7 +92,7 @@ class ESPNBetClient(SportsbookClient):
             self.logger.warning(f'Unknown event id for {event_key} ({self.league})')
             return []
 
-        event_url = f'/sport/{self.sport}/organization/united-states/competition/{self.league}/event/{event_id}/sections/player_props',
+        event_url = f'/sport/{self.sport}/organization/united-states/competition/{self.league}/event/{event_id}/sections/player_props'
         data = self._get(event_url)
 
         markets = data.get('sectionChildren', [])
@@ -118,8 +118,13 @@ class ESPNBetClient(SportsbookClient):
 
                         line = (selection.get('points') or {}).get('decimalPoints')
                         team = (selection.get('participant') or {}).get('fullName')
-                        value = selection['odds']['numerator'] / selection['odds']['denominator']
-                        status = selection['status']
+
+                        if not selection.get('odds'):
+                            value = 0
+                            status = 'suspended'
+                        else:
+                            value = selection['odds']['numerator'] / selection['odds']['denominator']
+                            status = 'active'
 
                         try:
                             odds_data = self.parse_selection(
