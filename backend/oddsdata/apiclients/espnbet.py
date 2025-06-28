@@ -2,10 +2,10 @@ import json
 
 from .base import SportsbookClient
 
-from common.utils.sportsbook import create_event_key, normalize_team_name, format_odds
+from common.utils.sportsbook import create_event_key, get_team_key
 from common.utils.time import utc_to_cst
-from common.exceptions import NormalizationError
 from common.utils.client import PlaywrightSessionManager
+from common.exceptions import NormalizationError
 
 class ESPNBetClient(SportsbookClient):
     BASE_URL = 'https://sportsbook-tsb.ca-default.thescore.bet/graphql/persisted_queries/4e63acef22373225db328b8fc6534a998cd73a90745758017559fa4b43e1fe66'
@@ -68,8 +68,8 @@ class ESPNBetClient(SportsbookClient):
 
                 away_team = event_data['awayParticipant']['fullName']
                 home_team = event_data['homeParticipant']['fullName']
-                away_team_key = self.redis.get(f'teams:aliases:{self.league}:{away_team}')
-                home_team_key = self.redis.get(f'teams:aliases:{self.league}:{home_team}')
+                away_team_key = get_team_key(away_team, self.league)
+                home_team_key = get_team_key(home_team, self.league)
 
                 if not away_team_key or not home_team_key:
                     self.logger.warning(f'Missing team(s) aliases for {away_team} and/or {home_team} ({self.league})')
@@ -81,6 +81,8 @@ class ESPNBetClient(SportsbookClient):
                 event_key = create_event_key(self.league, start_date, away_team_key, home_team_key)
                 self.match_espn_key(event_key, event_id)
 
+            except NormalizationError as e:
+                self.logger.debug(e)
             except Exception as e:
                 self.logger.exception(f'An error occured while parsing events ({self.league}): {e}') 
 
@@ -133,6 +135,8 @@ class ESPNBetClient(SportsbookClient):
                             if self.compare_and_update_odds_cache(odds_data):
                                 odds.append(odds_data)
 
+                        except NormalizationError as e:
+                            self.logger.debug(e)
                         except Exception as e:
                             self.logger.exception(f'An error occured while parsing markets for {event_key} ({self.league}): {e}')
 

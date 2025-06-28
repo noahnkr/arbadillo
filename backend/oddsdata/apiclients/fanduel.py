@@ -1,15 +1,11 @@
 import re
-import json
 
 from .base import SportsbookClient
 
-from common.utils.sportsbook import (
-    create_event_key, create_market_key, normalize_market_name, normalize_status_name, normalize_team_name,
-    correct_over_under_line, normalize_market_outcome, format_odds
-)
+from common.utils.sportsbook import create_event_key, get_team_key
 from common.utils.time import utc_to_cst
-from common.exceptions import NormalizationError
 from common.utils.client import PlaywrightSessionManager
+from common.exceptions import NormalizationError
 
 class FanDuelClient(SportsbookClient):
     BASE_URL = 'https://sbapi.il.sportsbook.fanduel.com/api'
@@ -54,10 +50,13 @@ class FanDuelClient(SportsbookClient):
 
                 clean_name = re.sub(r'\s*\([^)]*\)', '', event['name']) # Remove primary player name inside parenthesis 
                 teams = clean_name.split('@')
+                if len(teams) != 2:
+                    continue
+
                 away_team = teams[0].strip()
                 home_team = teams[1].strip()
-                away_team_key = self.redis.get(f'events:aliases:{self.league}:{away_team}')
-                home_team_key = self.redis.get(f'events:aliases:{self.league}:{home_team}')
+                away_team_key = get_team_key(away_team, self.league)
+                home_team_key = get_team_key(home_team, self.league)
 
                 if not away_team_key or not home_team_key:
                     self.logger.warning(f'Missing team(s) aliases for {away_team} and/or {home_team} ({self.league})')
@@ -68,6 +67,9 @@ class FanDuelClient(SportsbookClient):
 
                 event_key = create_event_key(self.league, start_date, away_team_key, home_team_key)
                 self.match_espn_key(event_key, event_id)
+
+            except NormalizationError as e:
+                self.logger.debug(e)
             except Exception as e:
                 self.logger.exception(f'An error occured while parsing events ({self.league}): {e}')
     
@@ -77,7 +79,7 @@ class FanDuelClient(SportsbookClient):
             self.logger.warning(f'Unknown event id for {event_key} ({self.league})')
             return []
 
-        event_status = 'upcoming' if self.redis.sismember(f'events:{self.league}:upcoming') else 'active'
+        event_status = 'upcoming' if self.redis.sismember(f'events:{self.league}:upcoming', event_key) else 'active'
 
         event_url = f'/event-page'
         params = {
@@ -85,7 +87,7 @@ class FanDuelClient(SportsbookClient):
             'tab': 'same-game-parlay-' if event_status == 'upcoming' else 'live-sgp'
         }
 
-        markets = self._get(event_url, params=params).get('markets', {})
+        markets = self._get(event_url, params=params).get('markets', {}).values()
         self.logger.info(f'Fetched {len(markets)} markets for {event_key} ({self.league})')
         return markets
 
@@ -99,13 +101,15 @@ class FanDuelClient(SportsbookClient):
                 try:
                     outcome_name = selection['runnerName']
                     line = selection['handicap'] if selection['handicap'] else None
-                    value = selection['winRunnerOdds']['trueOdds']['decimalOdds']['decimalOdds']
-                    status = selection['runnerStatus']
+                    value = selection.get('winRunnerOdds', {}).get('trueOdds', {}).get('decimalOdds', {}).get('decimalOdds', 0)
+                    status = selection['runnerStatus'] if value else 'suspended'
 
                     odds_data =  self.parse_selection(event_key, market_name, outcome_name, line=line, value=value, status=status)
                     if self.compare_and_update_odds_cache(odds_data):
                         odds.append(odds_data)
 
+                except NormalizationError as e:
+                    self.logger.debug(e)
                 except Exception as e:
                     self.logger.exception(f'An error occured while parsing markets for {event_key} ({self.league}): {e}')
 
