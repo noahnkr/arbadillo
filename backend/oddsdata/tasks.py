@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(queue='scraping')
 def sync_odds(status: str):
+	logger.info('Syncing odds...')
 	chord(
 		group(
 			scrape_odds_for_event.s(sportsbook=sportsbook, league=league, event_key=event_key)
@@ -33,8 +34,9 @@ def sync_odds(status: str):
 	).apply_async()
 
 
-@shared_task(qeueue='scraping')
+@shared_task(queue='scraping')
 def sync_sportsbook_schedule():
+	logger.info('Syncing sportsbook schedules...')
 	group(
 		scrape_events_for_league.s(sportsbook=sportsbook, league=league)
 		for sportsbook in SPORTSBOOK_CLIENTS
@@ -44,12 +46,14 @@ def sync_sportsbook_schedule():
 
 @shared_task(queue='scraping')
 def scrape_odds_for_event(sportsbook, league, event_key):
+	logger.info(f'Scraping {sportsbook} odds for {event_key}...')
 	client = get_client(sportsbook, sport=get_sport_from_league(league), league=league)
 	return client.parse_markets(event_key)
 
 
 @shared_task(queue='scraping')
 def scrape_events_for_league(sportsbook, league):
+	logger.info(f'Scraping {sportsbook} events for {league}...')
 	client = get_client(sportsbook, sport=get_sport_from_league(league), league=league)
 	client.parse_events()
 
@@ -57,6 +61,15 @@ def scrape_events_for_league(sportsbook, league):
 @shared_task(queue='database')
 def batch_upsert_odds(odds_data_lists: list):
 	odds_data = [odds for sublist in odds_data_lists for odds in sublist]
+	logger.info(f'Upserting {len(odds_data)} odds...')
+
+	deduped_odds_data = {}
+	for odds in odds_data:
+		key = (odds["event_key"], odds["market_key"], odds["sportsbook"], odds["outcome"])
+		deduped_odds_data[key] = odds
+	
+	odds_data = list(deduped_odds_data.values())
+
 	to_create, to_update = [], []
 
 	lookup_keys = set(
@@ -115,10 +128,10 @@ def batch_upsert_odds(odds_data_lists: list):
 
 	if to_create:
 		Odds.objects.bulk_create(to_create)
-		logger.info(f'Created {len(to_create)} odds rows.')
+		logger.info(f'Creating {len(to_create)} odds rows...')
 	if to_update:
 		Odds.objects.bulk_update(to_update, ['value', 'status', 'collected_at'])
-		logger.info(f'Updated {len(to_update)} odds rows.')
+		logger.info(f'Updating {len(to_update)} odds rows...')
 
 				
 				
