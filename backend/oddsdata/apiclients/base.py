@@ -9,7 +9,7 @@ from redis import Redis
 
 from common.utils.sportsbook import (
     generate_data_hash, format_odds, normalize_market_name, normalize_market_outcome, 
-    correct_over_under_line, normalize_status_name, create_market_key, get_market_type
+    correct_over_under_line, normalize_status_name, create_market_key, get_team_key
 )
 from common.constants.sportsbook import EVENT_TTL, ODDS_TTL
 from common.exceptions import NormalizationError
@@ -78,7 +78,7 @@ class SportsbookClient(ABC):
             self.redis.set(f'{self.name}:ids:{event_key}', event_id, ex=EVENT_TTL)
             self.logger.info(f'Matched {event_key} to ESPN schedule ({self.league})')
         else:
-            self.logger.warning(f'Unable to match {event_key} to ESPN schedule ({self.league})')
+            self.logger.debug(f'Unable to match {event_key} to ESPN schedule ({self.league})')
     
     def compare_and_update_odds_cache(self, odds_data) -> bool:
         odds_hash = generate_data_hash(odds_data)
@@ -95,7 +95,7 @@ class SportsbookClient(ABC):
 
         return False
 
-    def parse_selection(self, event_key, name, outcome, line=None, value=0, team=None, player=None,  status='active'):
+    def parse_selection(self, event_key, name, outcome, line=None, value=0, team=None, player=None, status='active'):
         market_name, market_type, market_line, market_team, market_player = normalize_market_name(name, self.league)
         outcome_name, outcome_player, outcome_line = normalize_market_outcome(outcome, market_type, self.league)
 
@@ -107,10 +107,11 @@ class SportsbookClient(ABC):
 
         if not team:
             team = market_team if market_team else None
-
-        if team and outcome_name == team:
-            team = None
-    
+            team = get_team_key(team, self.league)
+        elif outcome_name == team:
+            team = None # Remove redundant 'team' value
+            outcome_name = get_team_key(outcome_name, self.league)
+        
         value = float(round(value, 3))
         status = normalize_status_name(status)
         market_key = create_market_key(market_name, line, team, player)
@@ -130,15 +131,15 @@ class SportsbookClient(ABC):
 
         # Validate selection format
         invalid_selection = (
-            (market_type in {'moneyline','spread'} and outcome_name not in self.redis.smembers(f'teams:{self.league}')) or
             (market_type in {'spread','total','over_under'} and not line) or
-            (market_type in {'total','over_under'} and outcome not in {'over','under'}) or
-            (team and team not in self.redis.smembers(f'teams:{self.league}')) or
-            (player and player not in self.redis.smembers(f'players:{self.league}'))
+            (market_type in {'total','over_under'} and outcome_name not in {'over','under'}) or
+            (market_type == {'yes_no'} and outcome not in {'yes','no'})
         )
-
         if invalid_selection:
             raise NormalizationError(f'Parsed selection is invalid: {format_odds(odds_data)} ({self.league})')
+
+        if player and not self.redis.sismember(f'players:{self.league}', player):
+            raise NormalizationError(f'Unknown player: {player}')
 
         return odds_data
 
