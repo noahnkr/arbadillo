@@ -18,8 +18,8 @@ END
 echo "PostgreSQL is up. Starting Django..."
 
 # Run database migrations
-python manage.py makemigrations sportsdata
-python manage.py makemigrations oddsdata
+python manage.py makemigrations sports
+python manage.py makemigrations sportsbook
 python manage.py migrate
 
 # Bootstrap initial data

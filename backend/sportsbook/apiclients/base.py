@@ -26,7 +26,7 @@ class SportsbookClient(ABC):
             db=settings.REDIS_DB,
             decode_responses=True
         )
-        self.logger = logging.getLogger(f'oddsdata.apiclients.{self.name}')
+        self.logger = logging.getLogger(f'sportsbook.apiclients.{self.name}')
 
     def _get(self, url, headers=None, params=None, method='requests', context=None, page=None):
         default_headers = {

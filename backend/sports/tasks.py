@@ -3,8 +3,8 @@ import logging
 from celery import shared_task
 from django.utils.dateparse import parse_datetime
 
-from sportsdata.models import Team, Player, Event
-from sportsdata.apiclients.espn import ESPNClient
+from sports.models import Team, Player, Event
+from sports.apiclients.espn import ESPNClient
 
 logger = logging.getLogger(__name__)
 

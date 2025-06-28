@@ -6,9 +6,9 @@ import os
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings.dev')
 django.setup()
 
-from oddsdata.apiclients.espnbet import ESPNBetClient
-from oddsdata.apiclients.draftkings import DraftKingsClient
-from oddsdata.apiclients.fanduel import FanDuelClient
+from sportsbook.apiclients.espnbet import ESPNBetClient
+from sportsbook.apiclients.draftkings import DraftKingsClient
+from sportsbook.apiclients.fanduel import FanDuelClient
 from common.constants.aliases import BASEBALL_MARKET_REGEX
 
 CLIENTS = {

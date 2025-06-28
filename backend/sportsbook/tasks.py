@@ -9,7 +9,7 @@ from common.constants.sportsbook_definitions import SPORTSBOOK_CLIENTS, CLIENT_L
 from common.utils.client import get_client
 from common.utils.sportsbook_helpers import get_sport_from_league
 
-from sportsdata.models import Event
+from sports.models import Event
 from .models import Odds
 
 redis = Redis(

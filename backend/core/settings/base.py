@@ -12,8 +12,8 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'core',
-    'sportsdata',
-    'oddsdata',
+    'sports',
+    'sportsbook',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -64,32 +64,32 @@ LOGGING = {
             'handlers': ['console'],
             'propagate': False,
         },
-        'oddsdata.tasks': {
+        'sports.tasks': {
             'level': 'INFO',
             'handlers': ['console'],
             'propagate': False,
         },
-        'sportsdata.tasks': {
+        'sportsbook.tasks': {
             'level': 'INFO',
             'handlers': ['console'],
             'propagate': False,
         },
-        'sportsdata.apiclients.espn': {
+        'sports.apiclients.espn': {
             'level': 'INFO',
             'handlers': ['console'],
             'propagate': False,
         },
-        'oddsdata.apiclients.espnbet': {
+        'sportsbook.apiclients.espnbet': {
             'level': 'INFO',
             'handlers': ['console'],
             'propagate': False,
         },
-        'oddsdata.apiclients.draftkings': {
+        'sportsbook.apiclients.draftkings': {
             'level': 'INFO',
             'handlers': ['console'],
             'propagate': False,
         },
-        'oddsdata.apiclients.fanduel': {
+        'sportsbook.apiclients.fanduel': {
             'level': 'INFO',
             'handlers': ['console'],
             'propagate': False,

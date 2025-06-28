@@ -1,6 +1,6 @@
 from django.db import models
 
-from sportsdata.models import Event
+from sports.models import Event
 
 class Odds(models.Model):
     class Status(models.TextChoices):
