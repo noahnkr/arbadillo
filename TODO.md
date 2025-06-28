@@ -15,6 +15,8 @@
 -   [x] Add status indicator to odds if they got locked
 -   [x] Implement ESPNBet scraping from TheScore's API
 -   [ ] Figure out how to fetch data from BetMGM while in headless mode
+-   [ ] Set collected_at value to scraping time, not database insertion time
+-   [ ] Data classes for Event, Player, Team, and Odds
 
 ## Database
 
@@ -24,7 +26,9 @@
 
 ## Testing
 
--   [ ] Test FanDuel prop scraping
--   [ ] Test DraftKings prop scraping
+-   [x] Test FanDuel prop scraping
+-   [x] Test DraftKings prop scraping
+-   [x] Test ESPNBet prop scraping
+-   [ ] Add execution times for Celery tasks
 
 ## Frontend
