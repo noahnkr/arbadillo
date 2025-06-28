@@ -90,7 +90,7 @@ class SportsbookClient(ABC):
             # Odds data have changed, cache odds and update DB
             self.redis.set(redis_key, json.dumps(odds_data), ex=ODDS_TTL)
             self.redis.set(redis_hash_key, odds_hash, ex=ODDS_TTL)
-            self.logger.info(f'updated {format_odds(odds_data)} for {odds_data["event_key"]}')
+            self.logger.info(f'Updated {format_odds(odds_data)} for {odds_data["event_key"]}')
             return True
 
         return False
