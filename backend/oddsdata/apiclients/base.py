@@ -106,11 +106,12 @@ class SportsbookClient(ABC):
             player = market_player if market_player else outcome_player
 
         if not team:
-            team = market_team if market_team else None
+            team = market_team
+        else:
             team = get_team_key(team, self.league)
-        elif outcome_name == team:
+
+        if outcome_name == team:
             team = None # Remove redundant 'team' value
-            outcome_name = get_team_key(outcome_name, self.league)
         
         value = float(round(value, 3))
         status = normalize_status_name(status)
