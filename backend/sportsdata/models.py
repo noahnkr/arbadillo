@@ -5,7 +5,6 @@ class Team(models.Model):
     team_key = models.CharField(max_length=100, unique=True)
     league = models.CharField(max_length=20)
     name = models.CharField(max_length=100)
-    aliases = models.JSONField(default=list)
 
     def __str__(self):
         return f'{self.league.upper()} - {self.name}'
@@ -17,7 +16,7 @@ class Player(models.Model):
     league = models.CharField(max_length=20)
     name = models.CharField(max_length=100)
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
-    position = models.CharField(max_length=10, null=True, blank=True)
+    position = models.CharField(max_length=100, null=True, blank=True)
     collected_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
