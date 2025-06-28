@@ -3,7 +3,7 @@ import json
 
 from common.utils.strings import clean_str, extract_float
 from common.constants.aliases import (
-    REVERSE_MARKET_LOOKUP, EVENT_STATUS_ALIASES, ODDS_STATUS_ALIASES, 
+    REVERSE_MARKET_LOOKUP, REVERSE_TEAM_LOOKUP, EVENT_STATUS_ALIASES, ODDS_STATUS_ALIASES, 
     MARKET_REGEXES, PRIMARY_MARKET_REGEX, MARKET_OUTCOME_REGEXES,
 )
 from common.constants.sportsbook import SPORTS_LEAGUES, PRIMARY_MARKETS
@@ -24,6 +24,17 @@ def create_market_key(
         if player: components.append(player)
         if team: components.append(team)
     return ':'.join(components)
+
+
+def get_team_key(name: str, league: str) -> str:
+    if name is None:
+        return None
+
+    key = (league, clean_str(name))
+    if key not in REVERSE_TEAM_LOOKUP:
+        raise NormalizationError(f'Unkown team alias `{name}` for league `{league}`')
+    
+    return REVERSE_TEAM_LOOKUP[key]
 
 
 def generate_data_hash(data: dict) -> str:
@@ -59,27 +70,7 @@ def decimal_to_american(decimal_odds: float) -> int:
 
 
 def normalize_market_name(name: str, league: str) -> tuple[str, str, float | None, str | None, str | None]:
-    """
-    Normalize a raw sportsbook market name into a standardized canonical format.
-
-    This function attempts to identify the standardized market key (e.g., 'player_points'),
-    the associated market type (e.g., 'over_under'), its scope ('team' or 'player'), and any 
-    applicable line value (e.g., 9.5 from 'To Score 10+ Points') and its outcome (e.g., yes/no, over/under).
-
-    Parameters:
-        market_name (str): The raw market name string from the sportsbook (e.g., "To Record 2+ Hits").
-        league (str): The league key (e.g., "nba", "mlb") used for league-specific alias mappings.
-
-    Returns:
-        tuple[str, str, float | None]: A tuple of (market_name, market_type, line), where:
-            - market_name: standardized slug identifier ('player_points')
-            - market_type: general market category (e.g., 'over_under', 'moneyline', 'yes_no')
-            - line: float line value if extracted (e.g., 1.5), otherwise None
-
-    Raises:
-        NormalizationError: If no known or pattern-matched alias can be identified for the input.
-    """
-    team, player = None, None
+    line, team, player = None, None, None
     primary_match = PRIMARY_MARKET_REGEX.search(name)
     prop_match = MARKET_REGEXES[league].search(name)
     if primary_match:
@@ -94,7 +85,8 @@ def normalize_market_name(name: str, league: str) -> tuple[str, str, float | Non
         residual = residual.strip()
         team = residual if residual else None
         if team:
-            market_key = 'team ' + market_key
+            market_key = f'team {market_key}'
+            team = get_team_key(team, league)
         
     elif prop_match:
         group_keys = ['scope', 'market'] 
@@ -111,12 +103,15 @@ def normalize_market_name(name: str, league: str) -> tuple[str, str, float | Non
         player = residual if residual else None
 
     elif (league, clean_str(name)) not in REVERSE_MARKET_LOOKUP:
-        raise NormalizationError(f'invalid market format `{name}` ({league})')
+            raise NormalizationError(f'Invalid market format: {name} ({league})')
+
+    else:
+        market_key = name
 
     key = (league, clean_str(market_key))
     if key not in REVERSE_MARKET_LOOKUP:
-        raise NormalizationError(f'Unsupported alias `{clean_str(market_key)}` ({league})')
-    
+        raise NormalizationError(f'Unsupported alias: {market_key} ({league})')
+
     market_name, market_type = REVERSE_MARKET_LOOKUP[key]
     return market_name, market_type, line, team, player
 
@@ -130,15 +125,16 @@ def normalize_market_outcome(market_outcome: str, market_type: str, league: str)
         line = match.groupdict().get('line', None)
 
         if market_type in {'moneyline', 'spread'}:
+            outcome = get_team_key(outcome, league)
             line = extract_float(line)
         elif market_type in {'total', 'over_under'}:
             if not outcome:
                 outcome = 'over'
-            outcome = outcome.lower()
+            outcome = outcome.lower().strip()
             line = correct_over_under_line(market_type, line)
         return outcome, player, line
     else:
-        raise NormalizationError(f'Invalid market outcome format `{market_outcome}` [{market_type}] ({league})')
+        raise NormalizationError(f'Invalid outcome format: {market_outcome} [{market_type}] ({league})')
 
 
 def correct_over_under_line(market_type: str, line) -> float:
@@ -157,7 +153,7 @@ def get_market_type(market: str, league: str) -> str:
     """Gets the market type from a market and league name."""
     key = (league, market)
     if key not in REVERSE_MARKET_LOOKUP:
-        raise NormalizationError(f'Unknown market name `{market}` ({league})')
+        raise NormalizationError(f'Unknown market name: {market} ({league})')
     _, market_type = REVERSE_MARKET_LOOKUP[key]
     return market_type
 
@@ -168,7 +164,7 @@ def normalize_status_name(status: str, is_odds=True) -> str:
     for standard, statuses in status_aliases.items():
         if clean_str(status) in map(clean_str, statuses):
             return standard
-    raise NormalizationError(f'Unknown status name `{status}`')
+    raise NormalizationError(f'Unknown status name: {status}')
 
 
 def get_sport_from_league(league: str) -> str:
@@ -176,7 +172,7 @@ def get_sport_from_league(league: str) -> str:
     for sport, leagues in SPORTS_LEAGUES.items():
         if clean_str(league) in map(clean_str, leagues):
             return sport
-    raise NormalizationError(f'Unknown league `{league}`')
+    raise NormalizationError(f'Unknown league: {league}')
 
 
 def format_odds(odds_data: dict) -> str:
@@ -192,16 +188,15 @@ def format_odds(odds_data: dict) -> str:
     if market_type == 'moneyline':
         odds_str = f'{outcome} {market} ({value})'
     elif market_type in ['spread', 'total']:
-        odds_str = f'{outcome} {line} {market} ({value})'
+        team_or_blank = team if team else ''
+        odds_str = f'{team_or_blank} {outcome} {line} {market} ({value})'.strip()
     elif market_type == 'over_under':
         team_or_player = (team or player) if team or player else ''
-        seperator = ' ' if team_or_player else ''
-        odds_str = f'{team_or_player}{seperator}{outcome} {line} {market} ({value})'
+        odds_str = f'{team_or_player} {outcome} {line} {market} ({value})'.strip()
     elif market_type == 'yes_no':
         team_or_player = (team or player) if team or player else ''
-        seperator = ' ' if team_or_player else ''
-        odds_str = f'{team_or_player}{seperator}{outcome} {market} ({value})'
+        odds_str = f'{team_or_player} {outcome} {market} ({value})'.strip()
     else:
-        raise ValueError(f'Unknown market type for `{market}`')
+        raise ValueError(f'Unknown market type for market: {market}')
 
     return odds_str
