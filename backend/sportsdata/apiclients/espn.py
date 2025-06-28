@@ -8,11 +8,11 @@ from dateutil import tz
 from redis import Redis
 from django.conf import settings
 
-from common.utils.sportsbook import (
+from common.utils.sportsbook_helpers import (
     create_event_key, generate_data_hash, normalize_status_name, get_team_key
 )
 from common.utils.time import utc_to_cst
-from common.constants.sportsbook import EVENT_TTL, EVENT_STATUSES
+from common.constants.sportsbook_definitions import EVENT_TTL, EVENT_STATUSES
 from common.exceptions import NormalizationError
 
 class ESPNClient:

@@ -2,7 +2,7 @@ import re
 
 from .base import SportsbookClient
 
-from common.utils.sportsbook import create_event_key, get_team_key
+from common.utils.sportsbook_helpers import create_event_key, get_team_key
 from common.utils.time import utc_to_cst
 from common.utils.client import get_browser
 from common.exceptions import NormalizationError

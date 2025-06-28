@@ -2,7 +2,7 @@ import importlib
 
 from playwright.sync_api import sync_playwright
 
-from common.constants.sportsbook import CLIENT_MAP
+from common.constants.sportsbook_definitions import CLIENT_MAP
 
 _browser = None
 _playwright = None

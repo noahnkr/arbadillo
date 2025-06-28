@@ -6,7 +6,7 @@ from common.constants.aliases import (
     REVERSE_MARKET_LOOKUP, REVERSE_TEAM_LOOKUP, EVENT_STATUS_ALIASES, ODDS_STATUS_ALIASES, 
     MARKET_REGEXES, PRIMARY_MARKET_REGEX, MARKET_OUTCOME_REGEXES,
 )
-from common.constants.sportsbook import SPORTS_LEAGUES, PRIMARY_MARKETS
+from common.constants.sportsbook_definitions import SPORTS_LEAGUES, PRIMARY_MARKETS
 from common.exceptions import NormalizationError
 
 def create_event_key(league: str, date: str, away:str, home:str) -> str:

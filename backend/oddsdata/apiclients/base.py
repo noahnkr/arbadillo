@@ -7,11 +7,11 @@ from django.conf import settings
 from urllib.parse import urlencode
 from redis import Redis
 
-from common.utils.sportsbook import (
+from common.utils.sportsbook_helpers import (
     generate_data_hash, format_odds, normalize_market_name, normalize_market_outcome, 
     correct_over_under_line, normalize_status_name, create_market_key, get_team_key
 )
-from common.constants.sportsbook import EVENT_TTL, ODDS_TTL
+from common.constants.sportsbook_definitions import EVENT_TTL, ODDS_TTL
 from common.exceptions import NormalizationError
 
 class SportsbookClient(ABC):

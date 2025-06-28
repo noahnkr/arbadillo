@@ -3,8 +3,8 @@ import logging
 from celery import shared_task, group, chord
 from sportsdata.tasks import sync_teams, sync_players, sync_schedule
 from oddsdata.tasks import scrape_events_for_league, sync_odds
-from common.constants.sportsbook import SPORTSBOOK_CLIENTS, CLIENT_LEAGUES
-from common.utils.sportsbook import get_sport_from_league
+from common.constants.sportsbook_definitions import SPORTSBOOK_CLIENTS, CLIENT_LEAGUES
+from common.utils.sportsbook_helpers import get_sport_from_league
 
 logger = logging.getLogger(__name__)
 

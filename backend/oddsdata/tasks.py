@@ -5,9 +5,9 @@ from redis import Redis
 from django.utils.timezone import now
 from django.conf import settings
 
-from common.constants.sportsbook import SPORTSBOOK_CLIENTS, CLIENT_LEAGUES
+from common.constants.sportsbook_definitions import SPORTSBOOK_CLIENTS, CLIENT_LEAGUES
 from common.utils.client import get_client
-from common.utils.sportsbook import get_sport_from_league
+from common.utils.sportsbook_helpers import get_sport_from_league
 
 from sportsdata.models import Event
 from .models import Odds
