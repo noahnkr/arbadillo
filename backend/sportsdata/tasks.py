@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(queue='scraping')
 def sync_teams(sport: str, league: str):
+	logger.info('Syncing teams...')
 	client = ESPNClient(sport, league)
 	teams = client.get_teams()
 
@@ -21,13 +22,15 @@ def sync_teams(sport: str, league: str):
 				'espn_id': team['espn_id'],
 				'league': team['league'],
 				'name': team['name'],
-				'aliases': team['aliases'],
 			}
 		)
+	
+	return teams
 
 
 @shared_task(queue='scraping')
 def sync_schedule(sport: str, league: str):
+	logger.info('Syncing ESPN schedule...')
 	client = ESPNClient(sport, league)
 	events = client.get_schedule()
 
@@ -55,6 +58,7 @@ def sync_schedule(sport: str, league: str):
 
 @shared_task(queue='scraping')
 def sync_players(sport: str, league: str, team_id: str):
+	logger.info(f'Syncing team {team_id} roster...')
 	client = ESPNClient(sport, league)
 	players = client.get_roster(team_id)
 
