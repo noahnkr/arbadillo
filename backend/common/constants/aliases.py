@@ -478,39 +478,39 @@ PRIMARY_MARKET_ALIASES = {
         'aliases': ['alternate first 7 innings total', 'alt f7 total']
     },
     'total_1st': {
-        'type': '',
+        'type': 'total',
         'aliases': ['1st inning over/under'],
     },
     'total_2nd': {
-        'type': '',
+        'type': 'total',
         'aliases': ['2nd inning over/under'],
     },
     'total_3rd': {
-        'type': '',
+        'type': 'total',
         'aliases': ['3rd inning over/under'],
     },
     'total_4th': {
-        'type': '',
+        'type': 'total',
         'aliases': ['4th inning over/under'],
     },
     'total_5th': {
-        'type': '',
+        'type': 'total',
         'aliases': ['5th inning over/under'],
     },
     'total_6th': {
-        'type': '',
+        'type': 'total',
         'aliases': ['6th inning over/under'],
     },
     'total_7th': {
-        'type': '',
+        'type': 'total',
         'aliases': ['7th inning over/under'],
     },
     'total_8th': {
-        'type': '',
+        'type': 'total',
         'aliases': ['8th inning over/under'],
     },
     'total_9th': {
-        'type': '',
+        'type': 'total',
         'aliases': ['9th inning over/under'],
     },
     # Hockey - Period Markets

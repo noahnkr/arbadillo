@@ -1,9 +1,8 @@
 import json
-import argparse
 import requests
 from urllib.parse import urlencode
 from playwright.sync_api import sync_playwright
-from ..common.constants.urls import ESPNBET_URLS, ESPNBET_AUTH_TOKEN
+from common.utils.client import get_browser, get_cookies    
 
 def fetch_data(url, headers=None, params=None, method='requests', context=None, page=None) -> dict:
     default_headers = {
@@ -43,40 +42,57 @@ def fetch_data(url, headers=None, params=None, method='requests', context=None, 
     else:
         raise ValueError(f'Unknown method `{method}`')
 
-def fetch_espnbet_data():
+
+def fetch_fanduel_data():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
-        page = context.new_page()
-        base_url = ESPNBET_URLS['base']
-        event_id = '94593739-217b-4d1f-b656-394a252c5655'
-        league_url = f'/sport/baseball/organization/united-states/competition/mlb'#/event/{event_id}/section/sgp'
-        cookies = context.cookies()
-        cookie_header = '; '.join(f"{c['name']}={c['value']}" for c in cookies)
+        url = 'https://sbapi.il.sportsbook.fanduel.com/api/content-managed-page?page=CUSTOM&customPageId=mlb'
         headers = {
-            'origin': 'https://thescore.bet',
-            'referer': 'https://thescore.bet',
-            'cookie': cookie_header,
-            'x-anonymous-authorization': ESPNBET_AUTH_TOKEN,
-        }
-        variables = {
-            'canonicalUrl': league_url,
-            'oddsFormat': 'AMERICAN',
-            'includeRichEvent': True,
-            'includeRecommendedProps': True,
-            'includeSectionDefaultField': True,
-            'includeTableMarketCard': True,
-            'pageType': 'PAGE',
+            'origin': 'https://sportsbook.fanduel.com',
+            'referer': 'https://sportsbook.fanduel.com',
         }
         params = {
-            'operationName': 'Marketplace',
-            'variables': json.dumps(variables),
+            '_ak': 'FhMFpcPWXMeyZxOx',
+            'timezone': 'America%2FChicago',
         }
+        data = fetch_data(url, headers=headers, params=params, method='playwright_request', context=context)
 
-        data = fetch_data(base_url, headers=headers, params=params, method='page_evaluate_fetch', page=page)
-
-        with open('espnbet-schedule-data.json', 'w') as f:
+        with open('data/fanduel-schedule-data.json', 'w') as f:
             json.dump(data, f, indent=2)
+
+
+def fetch_espnbet_data():
+    browser = get_browser()
+    context = browser.new_context()
+    page = context.new_page()
+
+    url = 'https://sportsbook-tsb.ca-default.thescore.bet/graphql/persisted_queries/a10930c7eba26a588efb729298364a07aa4cdcd40d456dd061dee1355bfb8e86'
+    path = '/sport/baseball/organization/united-states/competition/mlb'
+
+    headers = {
+        'origin': 'https://thescore.bet',
+        'referer': 'https://thescore.bet',
+        'x-anonymous-authorization': 'Bearer eyJhbGciOiJSU0EtT0FFUCIsImVuYyI6IkExMjhDQkMtSFMyNTYifQ.I90O69ULGH1ehEsPEpXv88G-0YYSnvlTKb2NL-38EvZU66NSOWsxWZXkOg4QpbAuyooucKAhMYmSwQmIJ2iEJ0U-NZP7upAyI1-riFZM26h5i5i58cXGDFqTYqU3sg6imTgsh0CFo_LsSwMAzcUAubpeCXH_TaPtHneme2jjPoYvo-fwt_OanVcMVqQnVwbd7rQktGDM-NBYQO2DQdegCA_n9lyQKeJHgoYgXnN426od2-MCVpc--E7fwz1-0fQo4eeaI0BEi3Oxaykxc3aPD4dtJA4CpGL9VKxe-DCa_A-e3TYGrzKRbtUgjlyHNAXtjP8XF6PBR3Dk2FG_VKyBZuZwQdSwtNT5cbi6OjSa-n32ArCXueqMygz_51Fc-kP34sU2mxC_XoN9bvSOXIu3iyLXZfVdGZOpRNwAMxH0yhmRx0KB89Vr9nSwbTAyqX693bnkIeNoaASK_iuptNXcVsg6HyE93xceTrT7ALmQrZW5Z0V2brTWNnhdgypRYy9fMxYb6Y0T3nbeuNvMSHtQUj5H9ZERJuhDk4oe7Eu6s-U2bfjSO9R2yxUs6i-VS58cqUPnK0HxSzSFiwVUYRu7x6ZLEW7ZXL5vgYe4A13uTc-CTyoJiIHi_xuHcPfUX2pHfXsVa-kcXBls_Bljr4NBNdhEzC3OS28K2H7sD4gv3T8.DAZz4Z6i1ZeSoknKSeNayA.3dlCcWPnwYjTpjirq3ml7b_3Ry_9Y9lev7sDh6yS-Ty_clXkn9ULinDnxVUQQYzIW69HFf7CKO6UmHO1tGgVPNjhCN9_nQbbRrv4GbcnhfHQ7-r6VdsscX7ikwKyGTfYPzHDWzUg6z8uZBd_llb747myH55kt_fpzUNEwd3y530-6NZ1MhZHymIG8htWzf-JvbcmU_ff7V15p6iMHByeSR11aJQ0nAhURlw0fTuvg9N4SSmMWh3I-Wg5YvvrmFq0kmsO71vxuSJABKnp7yG7FQ.LAZPf8A0B73LnIZIn40Fmw'
+    }
+    variables = {
+        'canonicalUrl': path,
+        'oddsFormat': 'AMERICAN',
+        'includeRichEvent': True,
+        'includeRecommendedProps': True,
+        'includeSectionDefaultField': True,
+        'includeTableMarketCard': True,
+        'pageType': 'PAGE',
+    }
+    params = {
+        'operationName': 'Marketplace',
+        'variables': json.dumps(variables),
+    }
+    data = fetch_data(url, headers=headers, params=params, method='page_evaluate_fetch', page=page)
+
+    with open('data/espnbet-data.json', 'w') as f:
+        json.dump(data, f, indent=2)
+
 
 if __name__ == '__main__':
     fetch_espnbet_data()

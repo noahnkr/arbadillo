@@ -2,7 +2,7 @@ services:
     django:
         build:
             context: ./backend
-        command: sh scripts/init-db.sh
+        command: sh scripts/entrypoint-django.sh
         container_name: django
         volumes:
             - ./backend:/app
@@ -44,7 +44,7 @@ services:
         build:
             context: ./backend
         container_name: celery-beat
-        command: celery -A core beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
+        command: sh scripts/entrypoint-beat.sh
         volumes:
             - ./backend:/app
         env_file:

@@ -18,9 +18,14 @@ END
 echo "PostgreSQL is up. Starting Django..."
 
 # Run database migrations
-python manage.py makemigrations scraper
-python manage.py makemigrations django_celery_beat
+python manage.py makemigrations sportsdata
+python manage.py makemigrations oddsdata
 python manage.py migrate
 
+# Bootstrap initial data
+echo "Triggering bootstrap task..."
+celery -A core call core.tasks.bootstrap_initial_data --queue scraping
+
 # Start server
+echo "Starting Django..."
 python manage.py runserver 0.0.0.0:8000

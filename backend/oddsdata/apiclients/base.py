@@ -8,16 +8,17 @@ from urllib.parse import urlencode
 from redis import Redis
 
 from common.utils.sportsbook import (
-    generate_data_hash, format_odds, normalize_market_name, normalize_market_outcome, normalize_team_name, correct_over_under_line, normalize_status_name,
-    create_market_key
+    generate_data_hash, format_odds, normalize_market_name, normalize_market_outcome, 
+    correct_over_under_line, normalize_status_name, create_market_key, get_team_key
 )
 from common.constants.sportsbook import EVENT_TTL, ODDS_TTL
-from oddsdata.tasks import batch_upsert_events, batch_upsert_odds
+from common.exceptions import NormalizationError
 
-class OddsClient(ABC):
+class SportsbookClient(ABC):
 
-    def __init__(self, name, league):
+    def __init__(self, name: str, sport: str, league: str):
         self.name = name
+        self.sport = sport
         self.league = league
         self.redis = Redis(
             host=settings.REDIS_HOST,
@@ -27,8 +28,7 @@ class OddsClient(ABC):
         )
         self.logger = logging.getLogger(f'oddsdata.apiclients.{self.name}')
 
-
-    def fetch_data(self, url, headers=None, params=None, method='requests', context=None, page=None) -> dict:
+    def _get(self, url, headers=None, params=None, method='requests', context=None, page=None):
         default_headers = {
             'accept': 'application/json',
             'content-type': 'application/json',
@@ -36,7 +36,7 @@ class OddsClient(ABC):
 		}
         final_headers = { **default_headers, **(headers or {}) }
 
-        self.logger.info(f'yielding request to {url} ({self.league})')
+        self.logger.info(f'Yielding request to {url} ({self.league})')
         try:
             if method == 'requests':
                 response = requests.get(url, headers=final_headers, params=params)
@@ -67,19 +67,18 @@ class OddsClient(ABC):
 
             else:
                 raise ValueError(f'Unknown method `{method}`')
+
         except Exception as e:
-            self.logger.exception(f'an error occured while yielding request to {url}: {e} ({self.league})')
+            self.logger.exception(f'An error occured while yielding request to {url}: {e} ({self.league})')
             return {}
 
-
     def match_espn_key(self, event_key, event_id):
-        if self.redis.exists(f'espn:events:{event_key}'):
+        if self.redis.exists(f'events:{event_key}'):
             self.redis.set(f'{self.name}:keys:{event_id}', event_key, ex=EVENT_TTL)
             self.redis.set(f'{self.name}:ids:{event_key}', event_id, ex=EVENT_TTL)
-            self.logger.info(f'matched {event_key} to ESPN schedule ({self.league})')
+            self.logger.info(f'Matched {event_key} to ESPN schedule ({self.league})')
         else:
-            self.logger.warning(f'unable to match {event_key} to ESPN schedule ({self.league})')
-        
+            self.logger.debug(f'Unable to match {event_key} to ESPN schedule ({self.league})')
     
     def compare_and_update_odds_cache(self, odds_data) -> bool:
         odds_hash = generate_data_hash(odds_data)
@@ -91,26 +90,14 @@ class OddsClient(ABC):
             # Odds data have changed, cache odds and update DB
             self.redis.set(redis_key, json.dumps(odds_data), ex=ODDS_TTL)
             self.redis.set(redis_hash_key, odds_hash, ex=ODDS_TTL)
-            #self.logger.info(f'updated {format_odds(odds_data)} for {odds_data["event_key"]}')
+            self.logger.info(f'Updated {format_odds(odds_data)} for {odds_data["event_key"]}')
             return True
-        else:
-            return False
 
+        return False
 
-    def upsert_data(self, data, is_odds=True):
-        if not data:
-            self.logger.info(f'no new {"odds" if is_odds else "events"} to upsert ({self.league})')
-        elif is_odds:
-            self.logger.info(f'upserting {len(data)} odds ({self.league})')
-            batch_upsert_odds.delay(data)
-        else:
-            self.logger.info(f'upserting {len(data)} events ({self.league})')
-            batch_upsert_events.delay(data)
-
-
-    def parse_selection(self, event_key, market_name, outcome_name, line=None, value=0, team=None, player=None,  status='active'):
-        standard_name, market_type, market_line, market_team, market_player = normalize_market_name(market_name, self.league)
-        standard_outcome, outcome_player, outcome_line = normalize_market_outcome(outcome_name, market_type, self.league)
+    def parse_selection(self, event_key, name, outcome, line=None, value=0, team=None, player=None, status='active'):
+        market_name, market_type, market_line, market_team, market_player = normalize_market_name(name, self.league)
+        outcome_name, outcome_player, outcome_line = normalize_market_outcome(outcome, market_type, self.league)
 
         if not line:
             line = correct_over_under_line(market_type, market_line) if market_line else correct_over_under_line(market_type, outcome_line)
@@ -120,23 +107,21 @@ class OddsClient(ABC):
 
         if not team:
             team = market_team if market_team else None
-
-        if team:
-            team = normalize_team_name(team, self.league)
-            if standard_outcome == team:
-                team = None
-
+            team = get_team_key(team, self.league)
+        elif outcome_name == team:
+            team = None # Remove redundant 'team' value
+            outcome_name = get_team_key(outcome_name, self.league)
+        
         value = float(round(value, 3))
         status = normalize_status_name(status)
+        market_key = create_market_key(market_name, line, team, player)
 
-        market_key = create_market_key(standard_name, line, team, player)
-
-        return {
+        odds_data = {
 			'event_key': event_key,
 			'market_key': market_key,
 			'sportsbook': self.name,
-			'market': standard_name,
-			'outcome': standard_outcome,
+			'market': market_name,
+			'outcome': outcome_name,
 			'line': line,
 			'value': value,
 			'team': team,
@@ -144,20 +129,32 @@ class OddsClient(ABC):
 			'status': status
 		}
 
+        # Validate selection format
+        invalid_selection = (
+            (market_type in {'spread','total','over_under'} and not line) or
+            (market_type in {'total','over_under'} and outcome_name not in {'over','under'}) or
+            (market_type == {'yes_no'} and outcome not in {'yes','no'})
+        )
+        if invalid_selection:
+            raise NormalizationError(f'Parsed selection is invalid: {format_odds(odds_data)} ({self.league})')
+
+        if player and not self.redis.sismember(f'players:{self.league}', player):
+            raise NormalizationError(f'Unknown player: {player}')
+
+        return odds_data
+
     @abstractmethod
-    def parse_schedule(self):
+    def get_events(self):
         pass
 
-
     @abstractmethod
-    def parse_primary_odds(self, status):
+    def parse_events(self):
         pass
 
-
     @abstractmethod
-    def parse_props(self, status):
+    def get_markets(self, event_key):
         pass
 
-
-    def export_markets(self, event_keys=[]):
+    @abstractmethod
+    def parse_markets(self, event_key):
         pass
