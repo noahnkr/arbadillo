@@ -12,7 +12,8 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'core',
-    'scraper',
+    'sportsdata',
+    'oddsdata',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -58,7 +59,17 @@ LOGGING = {
             'handlers': ['console'],
             'propagate': False,
         },
+        'core.tasks': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
         'oddsdata.tasks': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+        'sportsdata.tasks': {
             'level': 'INFO',
             'handlers': ['console'],
             'propagate': False,
