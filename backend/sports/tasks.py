@@ -1,7 +1,7 @@
 import logging
 
 from celery import shared_task
-from django.utils.dateparse import parse_datetime
+from datetime import timezone
 
 from sports.models import Team, Player, Event
 from sports.apiclients.espn import ESPNClient
@@ -17,15 +17,14 @@ def sync_teams(sport: str, league: str):
 	logger.info(f'Upserting {len(teams)} team(s)')
 	for team in teams:
 		Team.objects.update_or_create(
-			team_key=team['team_key'],
+			team_key=team.team_key,
 			defaults={
-				'espn_id': team['espn_id'],
-				'league': team['league'],
-				'name': team['name'],
+				'espn_id': team.espn_id,
+				'league': team.league,
+				'name': team.name,
 			}
 		)
-	
-	return teams
+	return [team.to_dict() for team in teams]
 
 
 @shared_task(queue='scraping')
@@ -37,46 +36,47 @@ def sync_schedule(sport: str, league: str):
 	logger.info(f'Upserting {len(events)} event(s)')
 	for event in events:
 		try:
-			away_team = Team.objects.get(team_key=event['away_team_key'])
-			home_team = Team.objects.get(team_key=event['home_team_key'])
+			away_team = Team.objects.get(team_key=event.away_team_key)
+			home_team = Team.objects.get(team_key=event.home_team_key)
+
+			start_time = event.start_time.replace(tzinfo=timezone.utc)
 
 			Event.objects.update_or_create(
-				event_key=event['event_key'],
+				event_key=event.event_key,
 				defaults={
-					'espn_id': event['espn_id'],
-					'league': event['league'],
+					'espn_id': event.espn_id,
+					'league': event.league,
 					'away_team': away_team,
 					'home_team': home_team,
-					'start_time': parse_datetime(event['start_time']),
-					'status': event['status'],
+					'start_time': start_time,
+					'status': event.status,
 				}
 			)
 		except Team.DoesNotExist:
-			logger.warning(f'Missing team(s) record for event {event["event_key"]} ({league})')
-			continue
+			logger.warning(f'Missing team(s) record for {event}')
 
 
 @shared_task(queue='scraping')
-def sync_players(sport: str, league: str, team_id: str):
-	logger.info(f'Syncing team {team_id} roster...')
+def sync_players(sport: str, league: str, team_key: str):
+	logger.info(f'Syncing {team_key} roster...')
 	client = ESPNClient(sport, league)
-	players = client.get_roster(team_id)
+	players = client.get_roster(team_key)
 
 	logger.info(f'Upserting {len(players)} player(s)')
-	for player in players:
-		try:
-			team = Team.objects.get(team_key=player['team_key'])
+	try:
+		team = Team.objects.get(team_key=team_key)
+	except Team.DoesNotExist:
+		logger.warning(f'Missing team record for {team_key}')
+		return
 
-			Player.objects.update_or_create(
-				espn_id=player['espn_id'],
-				defaults={
-					'league': player['league'],
-					'name': player['name'],
-					'team': team,
-					'player_key': player['player_key'],
-					'position': player['position'],
-				}
-			)
-		except Team.DoesNotExist:
-			logger.warning(f'Missing team record for player {player["name"]} ({league})')
-			continue
+	for player in players:
+		Player.objects.update_or_create(
+			espn_id=player.espn_id,
+			defaults={
+				'league': player.league,
+				'name': player.name,
+				'team': team,
+				'player_key': player.player_key,
+				'position': player.position,
+			}
+		)
