@@ -6,6 +6,7 @@
 -   [x] Seperate Celery queues for scraping and database operations
 -   [x] Converet Redis HSET -> SET and add TTL
 -   [x] Fix run_periodic_scrape chaining
+-   [ ] Prevent syncronous logging blocking scraping thread
 
 ## Scraping
 
@@ -15,8 +16,8 @@
 -   [x] Add status indicator to odds if they got locked
 -   [x] Implement ESPNBet scraping from TheScore's API
 -   [ ] Figure out how to fetch data from BetMGM while in headless mode
--   [ ] Set collected_at value to scraping time, not database insertion time
--   [ ] Data classes for Event, Player, Team, and Odds
+-   [x] Set collected_at value to scraping time, not database insertion time
+-   [x] Data classes for Event, Player, Team, and Odds
 
 ## Database
 
