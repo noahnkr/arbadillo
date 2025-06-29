@@ -87,7 +87,7 @@ class SportsbookClient(ABC):
             self.logger.info(f'Unable to match {event_key} to ESPN schedule ({self.league})')
     
     def compare_and_update_selection(self, selection: SelectionData) -> bool:
-        selection_hash = hash(selection)
+        selection_hash = str(hash(selection))
         redis_key = f'{self.name}:selections:{self.league}:{selection.event_key}:{selection.market_key}:{selection.outcome}'
         redis_hash_key = f'{self.name}:hashes:{self.league}:{selection.event_key}:{selection.market_key}:{selection.outcome}'
         prev_hash = self.redis.get(redis_hash_key)
