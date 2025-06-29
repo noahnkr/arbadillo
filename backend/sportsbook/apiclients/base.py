@@ -79,7 +79,7 @@ class SportsbookClient(ABC):
             return {}
 
     def match_espn_key(self, event_key, event_id):
-        if self.redis.exists(f'events:{self.league}:{event_key}'):
+        if self.redis.exists(f'events:ids:{self.league}:{event_key}'):
             self.redis.set(f'{self.name}:keys:{self.league}:{event_id}', event_key, ex=EVENT_TTL)
             self.redis.set(f'{self.name}:ids:{self.league}:{event_key}', event_id, ex=EVENT_TTL)
             self.logger.info(f'Matched {event_key} to ESPN schedule ({self.league})')
