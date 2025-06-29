@@ -49,9 +49,6 @@ def scrape_selections_for_event(sportsbook, league, event_key):
 	logger.info(f'Scraping {sportsbook} selections for {event_key}...')
 	client = get_client(sportsbook, sport=get_sport_from_league(league), league=league)
 	selections = client.parse_markets(event_key)
-	if selections is None:
-		logger.warning(f'SELECTIONS IS NONE!') #TODO: delete
-		return []
 	return [s.to_dict() for s in selections]
 
 
@@ -114,7 +111,7 @@ def batch_upsert_selections(selection_data_lists: list):
 		if existing:
 			has_changes = any(
 				getattr(existing, field) != getattr(selection, field)
-				for field in ['line', 'value', 'status', 'collected_at']
+				for field in ['line', 'value', 'status']
 			)
 			if has_changes:
 				for field in ['line', 'value', 'status', 'collected_at']:
