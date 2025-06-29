@@ -1,8 +1,10 @@
 import logging
 
 from celery import shared_task, group, chord
+
 from sports.tasks import sync_teams, sync_players, sync_schedule
-from sportsbook.tasks import scrape_events_for_league, sync_odds
+from sportsbook.tasks import scrape_events_for_league, sync_selections
+
 from common.constants.sportsbook_definitions import SPORTSBOOK_CLIENTS, CLIENT_LEAGUES
 from common.utils.sportsbook_helpers import get_sport_from_league
 
@@ -18,6 +20,7 @@ def bootstrap_initial_data():
         ),
         bootstrap_roster_and_schedule.s()
     ).apply_async()
+
 
 @shared_task(queue='scraping')
 def bootstrap_roster_and_schedule(teams_by_league):
@@ -36,7 +39,7 @@ def bootstrap_roster_and_schedule(teams_by_league):
                 sync_players.s(
                     sport=get_sport_from_league(league), 
                     league=league,
-                    team_id=team['espn_id']
+                    team_key=team['team_key'],
                 )
             )
         
@@ -66,11 +69,12 @@ def bootstrap_sportsbook_schedule():
         bootstrap_sportsbook_odds.si()
     ).apply_async()
 
+
 @shared_task(queue='scraping')
 def bootstrap_sportsbook_odds():
     # Phase 4: Sync upcoming and active sportsbook odds
     logger.info('Sportsbook schedule synced. Bootstrapping sportsbook odds...')
     group(
-        sync_odds.s(status='upcoming'),
-        sync_odds.s(status='active')
+        sync_selections.s(status='upcoming'),
+        sync_selections.s(status='active')
     ).apply_async()
