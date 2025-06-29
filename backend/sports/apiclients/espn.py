@@ -41,7 +41,7 @@ class ESPNClient:
 		response.raise_for_status()
 		return response.json()
 
-	def get_teams(self) -> list[TeamData]:
+	def get_teams(self) -> tuple[list[TeamData], list[TeamData]]:
 		teams = []
 
 		raw = self._get('/teams')
@@ -52,53 +52,65 @@ class ESPNClient:
 				self.logger.warning(e)
 				continue
 
+		upsert_teams = []
 		for team in teams:
 			self.redis.sadd(f'teams:{self.league}', team.team_key)
-			self.redis.set(f'teams:{self.league}:{team.team_key}', json.dumps(team.to_dict()))
-			self.redis.set(f'teams:keys:{self.league}:{team.espn_id}', team.team_key)
-			self.redis.set(f'teams:ids:{self.league}:{team.team_key}', team.espn_id)
-			self.logger.debug(f'Scraped team {team}')
 
-		self.logger.info(f'Scraped {len(teams)} team(s) ({self.league})')
-		return teams
+			team_hash = str(hash(team))
+			redis_key = f'teams:{self.league}:{team.espn_id}'
+			redis_hash_key = f'teams:hashes:{self.league}:{team.espn_id}'
+			prev_hash = self.redis.get(redis_hash_key)
 
-	def get_roster(self, team_key) -> list[PlayerData]:
-		players = []
+			if prev_hash != team_hash:
+				upsert_teams.append(team)
+				self.redis.set(redis_key, json.dumps(team.to_dict()))
+				self.redis.set(redis_hash_key, team_hash)
+				self.redis.set(f'teams:keys:{self.league}:{team.espn_id}', team.team_key)
+				self.redis.set(f'teams:ids:{self.league}:{team.team_key}', team.espn_id)
+				self.logger.debug(f'Updated team {team}')
 
+		self.logger.info(f'Scraped {len(upsert_teams)} team(s) ({self.league})')
+		return teams, upsert_teams
+
+	def get_roster(self, team_key) -> tuple[list[PlayerData], list[PlayerData]]:
 		team_id = self.redis.get(f'teams:ids:{self.league}:{team_key}')
 		if not team_id:
 			self.logger.warning(f'Missing ESPN id for {team_key} ({self.league})')
 			return []
 
 		raw = self._get(f'/teams/{team_id}/roster')
-		raw_players = [self.parse_player(player, team_key) for position in raw['athletes'] for player in position['items']]
-		for player in raw_players:
+		players = [self.parse_player(p, team_key) for position in raw['athletes'] for p in position['items']]
+
+		upsert_players = []
+		for player in players:
 			self.redis.sadd(f'players:{self.league}', player.name)
 
-			player_hash = hash(player)
-			prev_hash = self.redis.get(f'players:hashes:{self.league}:{player.espn_id}')
+			player_hash = str(hash(player))
+			redis_key = f'players:{self.league}:{player.espn_id}'
+			redis_hash_key = f'players:hashes:{self.league}:{player.espn_id}'
+			prev_hash = self.redis.get(redis_hash_key)
+
 			if prev_hash != player_hash:
-				players.append(player)
-				self.redis.set(f'players:{self.league}:{player.espn_id}', json.dumps(player.to_dict()))
+				upsert_players.append(player)
+				self.redis.set(redis_key, json.dumps(player.to_dict()))
+				self.redis.set(redis_hash_key, player_hash)
 				self.redis.set(f'players:keys:{self.league}:{player.espn_id}', player.player_key)
 				self.redis.set(f'players:ids:{self.league}:{player.player_key}', player.espn_id)
-				self.redis.set(f'players:hashes:{self.league}:{player.espn_id}', player_hash)
 				self.logger.debug(f'Scraped player {player}')
 		
-		self.logger.info(f'Scraped {len(players)} player(s) ({self.league})')
-		return players
+		self.logger.info(f'Scraped {len(upsert_players)} player(s) ({self.league})')
+		return players, upsert_players
 
-	def get_schedule(self) -> list[EventData]:
+	def get_schedule(self) -> tuple[list[EventData], list[EventData]]:
 		events = []
-
-		raw_events = []
 		central = tz.gettz('America/Chicago')
 		for days in range(0, 3):
 			date = (datetime.now(tz=central) + timedelta(days=days)).strftime('%Y%m%d')
 			raw = self._get('/scoreboard', params={'dates': date})
-			raw_events.extend(self.parse_event(event) for event in raw['events'])
+			events.extend(self.parse_event(e) for e in raw['events'])
 		
-		for event in raw_events:
+		upsert_events = []
+		for event in events:
 			if not event.away_team_key or not event.home_team_key:
 				self.logger.warning(f'Missing team(s) for ESPN event id {event.espn_id}')
 				continue
@@ -108,19 +120,21 @@ class ESPNClient:
 				if s != event.status:
 					self.redis.srem(f'events:{self.league}:{s}', event.event_key)
 
-			event_hash = hash(event)
-			prev_hash = self.redis.get(f'events:hashes:{self.league}:{event.event_key}')
+			event_hash = str(hash(event))
+			redis_key = f'events:{self.league}:{event.espn_id}'
+			redis_hash_key  = f'events:hashes:{self.league}:{event.espn_id}'
+			prev_hash = self.redis.get(redis_hash_key)
+
 			if prev_hash != event_hash:
-				# Event data has changed, cache event and update DB
-				events.append(event)
-				self.redis.set(f'events:{self.league}:{event.event_key}', json.dumps(event.to_dict()), ex=EVENT_TTL)
+				upsert_events.append(event)
+				self.redis.set(redis_key, json.dumps(event.to_dict()), ex=EVENT_TTL)
+				self.redis.set(redis_hash_key, event_hash, ex=EVENT_TTL)
 				self.redis.set(f'events:keys:{self.league}:{event.espn_id}', event.event_key, ex=EVENT_TTL)
 				self.redis.set(f'events:ids:{self.league}:{event.event_key}', event.espn_id, ex=EVENT_TTL)
-				self.redis.set(f'events:hashes:{self.league}:{event.event_key}', event_hash, ex=EVENT_TTL)
-				self.logger.info(f'Scraped event {event}')
+				self.logger.info(f'Updated event {event}')
 
-		self.logger.info(f'Scraped {len(events)} event(s) ({self.league})')
-		return events
+		self.logger.info(f'Scraped {len(upsert_events)} event(s) ({self.league})')
+		return events, upsert_events
 	
 	def parse_team(self, team_json) -> TeamData:
 		return TeamData(
