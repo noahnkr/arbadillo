@@ -1,8 +1,8 @@
+from dateutil.parser import isoparse
 
 from .base import SportsbookClient
 
 from common.utils.sportsbook_helpers import create_event_key, get_team_key
-from common.utils.time import utc_to_cst
 from common.exceptions import NormalizationError
 
 class DraftKingsClient(SportsbookClient):
@@ -47,10 +47,10 @@ class DraftKingsClient(SportsbookClient):
 					self.logger.warning(f'Missing team(s) aliases for {away_team} and/or {home_team} ({self.league})')
 					continue
 
-				start_time = utc_to_cst(event['startEventDate'])
-				start_date = start_time.split('T')[0]
+				start_time = isoparse(event['startEventDate'])
+				start_date = start_time.strftime('%Y-%m-%d')
 
-				event_key = create_event_key(self.league, start_date, away_team_key, home_team_key)
+				event_key = create_event_key(start_date, away_team_key, home_team_key)
 				self.match_espn_key(event_key, event_id)
 			
 			except NormalizationError as e:
@@ -59,7 +59,7 @@ class DraftKingsClient(SportsbookClient):
 				self.logger.exception(f'An error occured while parsing events ({self.league}): {e}')	
 
 	def get_markets(self, event_key):
-		event_id = self.redis.get(f'{self.name}:ids:{event_key}')
+		event_id = self.redis.get(f'{self.name}:ids:{self.league}:{event_key}')
 		if not event_id:
 			self.logger.warning(f'Unknown event id for {event_key} ({self.league})')
 			return {}
@@ -70,7 +70,7 @@ class DraftKingsClient(SportsbookClient):
 		return data
 	
 	def parse_markets(self, event_key):
-		odds = []
+		market_selections = []
 		data = self.get_markets(event_key)
 
 		market_mappings = {}
@@ -91,27 +91,32 @@ class DraftKingsClient(SportsbookClient):
 				outcome_name = selection['label']
 
 				line = selection.get('points')
-				value = selection['trueOdds']
+				value = selection.get('trueOdds')
+				status = 'active'
+				if not value:
+					value = 0
+					status = 'suspended'
 
 				participant = selection.get('participants', [None])[0]
 				team   = participant['name'] if participant and participant.get('type') == 'Team' else None
 				player = participant['name'] if participant and participant.get('type') == 'Player' else None
 
-				odds_data = self.parse_selection(
+				selection_data = self.parse_selection(
 					event_key, 
 					market_name, 
 					outcome_name, 
-					line=line,
 					value=value,
+					line=line,
 					team=team,
-					player=player
+					player=player,
+					status=status,
 				)
-				if self.compare_and_update_odds_cache(odds_data):
-					odds.append(odds_data)
+				if self.compare_and_update_selection(selection_data):
+					market_selections.append(selection_data)
 
 			except NormalizationError as e:
 				self.logger.debug(e)
 			except Exception as e:
 				self.logger.exception(f'An error occured while parsing markets for {event_key} ({self.league}): {e}')
 
-		return odds
+		return market_selections
