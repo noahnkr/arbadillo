@@ -1,4 +1,6 @@
-from dataclasses import dataclass, field, asdict
+import hashlib
+
+from dataclasses import dataclass, field, fields, asdict
 from datetime import datetime 
 
 from django.utils.timezone import now
@@ -12,6 +14,12 @@ class TeamData:
     
     def __repr__(self) -> str:
         return f'{self.name} ({self.league})'
+
+    def __hash__(self) -> int:
+        parts = [str(getattr(self, f.name)) for f in fields(self)]
+        raw = '|'.join(parts)
+        return int.from_bytes(hashlib.sha256(raw.encode()).digest()[:8], 'big')
+
     
     def to_dict(self) -> dict:
         return asdict(self)
@@ -28,6 +36,11 @@ class PlayerData:
     
     def __repr__(self) -> str:
         return f'{self.name} ({self.team_key})'
+
+    def __hash__(self) -> int:
+        parts = [str(getattr(self, f.name)) for f in fields(self)]
+        raw = '|'.join(parts)
+        return int.from_bytes(hashlib.sha256(raw.encode()).digest()[:8], 'big')
     
     def to_dict(self) -> dict:
         return asdict(self)
@@ -42,10 +55,19 @@ class EventData:
     home_team_key: int
     start_time: datetime
     status: str
-    collected_at: datetime = field(default_factory=now, hash=False, compare=False)
+    collected_at: datetime = field(default_factory=now)
     
     def __repr__(self) -> str:
         return f'{self.start_time.strftime("%Y-%m-%d")} - {self.away_team_key} @ {self.home_team_key} ({self.league})'
+
+    def __hash__(self) -> int:
+        parts = [
+            str(getattr(self, f.name))
+            for f in fields(self)
+            if f.name != 'collected_at'
+        ]
+        raw = '|'.join(parts)
+        return int.from_bytes(hashlib.sha256(raw.encode()).digest()[:8], 'big')
     
     def to_dict(self) -> dict:
         d = asdict(self)

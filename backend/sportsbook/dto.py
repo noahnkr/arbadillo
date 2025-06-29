@@ -1,4 +1,6 @@
-from dataclasses import dataclass, field, asdict
+import hashlib
+
+from dataclasses import dataclass, field, fields, asdict
 from datetime import datetime
 
 from django.utils.timezone import now
@@ -18,7 +20,7 @@ class SelectionData:
     line: float = field(default=None)
     team: str = field(default=None)
     player: str = field(default=None)
-    collected_at: datetime = field(default_factory=now, hash=False, compare=False)
+    collected_at: datetime = field(default_factory=now)
 
     def __repr__(self) -> str:
         market_type = get_market_type(self.market, self.league)
@@ -32,6 +34,17 @@ class SelectionData:
         else:
             team_or_player = (self.team or self.player) if self.team or self.player else ''
             return f'{team_or_player} {self.outcome} {self.line} {self.market} ({self.value})'.strip()
+        
+    def __hash__(self) -> int:
+        parts = [
+            str(getattr(self, f.name))
+            for f in fields(self)
+            if f.name != 'collected_at'
+        ]
+        raw = '|'.join(parts)
+        return int.from_bytes(hashlib.sha256(raw.encode()).digest()[:8], 'big')
+
+
     
     def to_dict(self) -> dict:
         d = asdict(self)
