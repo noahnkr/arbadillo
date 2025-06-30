@@ -9,11 +9,12 @@ from common.utils.client import get_browser
 from common.exceptions import NormalizationError
 
 class FanDuelClient(SportsbookClient):
+    NAME = 'fanduel'
     BASE_URL = 'https://sbapi.il.sportsbook.fanduel.com/api'
     AUTH_TOKEN = 'FhMFpcPWXMeyZxOx'
 
     def __init__(self, sport: str, league: str):
-        super().__init__('fanduel', sport, league)
+        super().__init__(self.NAME, sport, league)
         self.context = get_browser().new_context()
     
     def _get(self, path, params):

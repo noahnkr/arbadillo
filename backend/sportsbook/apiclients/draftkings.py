@@ -6,13 +6,14 @@ from common.utils.sportsbook_helpers import create_event_key, get_team_key
 from common.exceptions import NormalizationError
 
 class DraftKingsClient(SportsbookClient):
+	NAME = 'draftkings'
 	BASE_URL = 'https://sportsbook-nash.draftkings.com/api/sportscontent/dkusil/v1'
 	LEAGUE_ID_MAP = {
 		'mlb': 84240
 	}
 
 	def __init__(self, sport, league):
-		super().__init__('draftkings', sport, league)
+		super().__init__(self.NAME, sport, league)
 	
 	def _get(self, path):
 		url = self.BASE_URL + path

@@ -84,7 +84,7 @@ class SportsbookClient(ABC):
             self.redis.set(f'{self.name}:ids:{self.league}:{event_key}', event_id, ex=EVENT_TTL)
             self.logger.info(f'Matched {event_key} to ESPN schedule ({self.league})')
         else:
-            self.logger.info(f'Unable to match {event_key} to ESPN schedule ({self.league})')
+            self.logger.warning(f'Unable to match {event_key} to ESPN schedule ({self.league})')
     
     def compare_and_update_selection(self, selection: SelectionData) -> bool:
         selection_hash = str(hash(selection))
@@ -95,7 +95,7 @@ class SportsbookClient(ABC):
         if prev_hash != selection_hash:
             self.redis.set(redis_key, json.dumps(selection.to_dict()), ex=ODDS_TTL)
             self.redis.set(redis_hash_key, selection_hash, ex=ODDS_TTL)
-            self.logger.info(f'Updated {selection} for {selection.event_key} ({self.league})')
+            self.logger.debug(f'Updated {selection} for {selection.event_key} ({self.league})')
             return True
 
         return False

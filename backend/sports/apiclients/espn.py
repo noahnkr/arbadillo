@@ -4,7 +4,6 @@ import logging
 
 from datetime import datetime, timedelta
 from dateutil import tz
-from dataclasses import asdict
 from redis import Redis
 from django.conf import settings
 
@@ -22,6 +21,7 @@ from common.constants.sportsbook_definitions import EVENT_TTL, EVENT_STATUSES
 from common.exceptions import NormalizationError
 
 class ESPNClient:
+	NAME = 'espn'
 	BASE_URL = 'https://site.api.espn.com/apis/site/v2/sports'
 
 	def __init__(self, sport: str, league: str):
@@ -33,7 +33,7 @@ class ESPNClient:
             db=settings.REDIS_DB,
             decode_responses=True
         )
-		self.logger = logging.getLogger(__name__)
+		self.logger = logging.getLogger(self.NAME)
 
 	def _get(self, path: str, params: dict = None):
 		url = f'{self.BASE_URL}/{self.sport}/{self.league}{path}'
@@ -131,7 +131,7 @@ class ESPNClient:
 				self.redis.set(redis_hash_key, event_hash, ex=EVENT_TTL)
 				self.redis.set(f'events:keys:{self.league}:{event.espn_id}', event.event_key, ex=EVENT_TTL)
 				self.redis.set(f'events:ids:{self.league}:{event.event_key}', event.espn_id, ex=EVENT_TTL)
-				self.logger.info(f'Updated event {event}')
+				self.logger.debug(f'Updated event {event}')
 
 		self.logger.info(f'Scraped {len(upsert_events)} event(s) ({self.league})')
 		return events, upsert_events
