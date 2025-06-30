@@ -45,53 +45,58 @@ LOGGING = {
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'default',
             'stream': 'ext://sys.stdout',
+            'formatter': 'default',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': 'logs/django.log',
+            'formatter': 'default',
         },
     },
     'root': {
-        'handlers': ['console'],
+        'handlers': ['console', 'file'],
         'level': 'INFO',
     },
     'loggers': {
-        'django.db.backends': {
+        'django': {
+            'handlers': ['console', 'file'],
             'level': 'WARNING',
-            'handlers': ['console'],
             'propagate': False,
         },
         'core.tasks': {
+            'handlers': ['console', 'file'],
             'level': 'INFO',
-            'handlers': ['console'],
             'propagate': False,
         },
         'sports.tasks': {
+            'handlers': ['console', 'file'],
             'level': 'INFO',
-            'handlers': ['console'],
             'propagate': False,
         },
         'sportsbook.tasks': {
+            'handlers': ['console', 'file'],
             'level': 'INFO',
-            'handlers': ['console'],
             'propagate': False,
         },
-        'sports.apiclients.espn': {
+        'espn': {
+            'handlers': ['console', 'file'],
             'level': 'INFO',
-            'handlers': ['console'],
             'propagate': False,
         },
-        'sportsbook.apiclients.espnbet': {
+        'espnbet': {
+            'handlers': ['console', 'file'],
             'level': 'INFO',
-            'handlers': ['console'],
             'propagate': False,
         },
-        'sportsbook.apiclients.draftkings': {
+        'draftkings': {
+            'handlers': ['console', 'file'],
             'level': 'INFO',
-            'handlers': ['console'],
             'propagate': False,
         },
-        'sportsbook.apiclients.fanduel': {
+        'fanduel': {
+            'handlers': ['console', 'file'],
             'level': 'INFO',
-            'handlers': ['console'],
             'propagate': False,
         },
     }
