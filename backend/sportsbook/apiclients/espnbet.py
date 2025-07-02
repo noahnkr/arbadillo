@@ -94,7 +94,7 @@ class ESPNBetClient(SportsbookClient):
             self.logger.warning(f'Unknown event id for {event_key} ({self.league})')
             return []
 
-        event_url = f'/sport/{self.sport}/organization/united-states/competition/{self.league}/event/{event_id}/sections/player_props'
+        event_url = f'/sport/{self.sport}/organization/united-states/competition/{self.league}/event/{event_id}'
         data = self._get(event_url)
 
         if not data:
@@ -151,3 +151,58 @@ class ESPNBetClient(SportsbookClient):
                             self.logger.exception(f'An error occured while parsing markets for {event_key} ({self.league}): {e}')
 
         return market_selections
+    
+    def export_markets(self, event_key):
+        export_markets = []
+        
+        markets = self.get_markets(event_key)
+        for market in markets:
+            market_name = market['labelText']
+            market_children = market['drawerChildren'][0].get('marketplaceShelfChildren', [])
+            for market_child in market_children if market_children else []:
+                player_container = market_child.get('participant', {})
+                player = player_container.get('fullName') if player_container else None
+
+                sub_markets = market_child.get('markets', [])
+                for sub_market in sub_markets:
+                    selections = sub_market.get('selections', [])
+                    for selection in selections:
+                        outcome_name = selection['name']['cleanName']
+
+                        line = (selection.get('points') or {}).get('decimalPoints')
+                        team = (selection.get('participant') or {}).get('fullName')
+
+                        export_selection = {
+                            'market_name': market_name,
+                            'outcome_name': outcome_name,
+                            'line': line,
+                            'team': team,
+                            'player': player,
+                            'expected': None,
+                            'expected_exception': None
+                        }
+
+                        try:
+                            selection_data = self.parse_selection(
+                                event_key, 
+                                market_name, 
+                                outcome_name, 
+                                line=line,
+                                team=team,
+                                player=player,
+                            ).to_dict()
+
+                            for key in ['sportsbook', 'league', 'event_key', 'market_key', 'status', 'value', 'collected_at']:
+                                selection_data.pop(key, None)
+
+                            export_selection['expected'] = selection_data
+                            export_selection['expected_exception'] = False
+
+                        except NormalizationError:
+                            export_selection['expected_exception'] = True
+                        except Exception:
+                            continue
+                        
+                        export_markets.append(export_selection)
+
+        return export_markets

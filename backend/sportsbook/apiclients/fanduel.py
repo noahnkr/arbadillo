@@ -128,3 +128,49 @@ class FanDuelClient(SportsbookClient):
                     self.logger.exception(f'An error occured while parsing markets for {event_key} ({self.league}): {e}')
 
         return market_selections
+
+    def export_markets(self, event_key):
+        export_markets = []
+
+        markets = self.get_markets(event_key)
+        for market in markets:
+            market_name = market['marketName']
+
+            selections = market['runners']
+            for selection in selections:
+                try:
+                    outcome_name = selection['runnerName']
+                    line = selection['handicap'] if selection['handicap'] else None
+
+                    export_selection = {
+                        'market_name': market_name,
+                        'outcome_name': outcome_name,
+                        'line': line,
+                        'team': None,
+                        'player': None,
+                        'expected': None,
+                        'expected_exception': None
+                    }
+
+                    try:
+                        selection_data = self.parse_selection(
+                            event_key, 
+                            market_name, 
+                            outcome_name,
+                            line=line, 
+                        ).to_dict()
+
+                        for key in ['sportsbook', 'league', 'event_key', 'market_key', 'status', 'value', 'collected_at']:
+                            selection_data.pop(key, None)
+
+                        export_selection['expected'] = selection_data
+                        export_selection['expected_exception'] = False
+                    except NormalizationError:
+                        export_selection['expected_exception'] = True
+
+                    export_markets.append(export_selection)
+
+                except Exception as e:
+                    self.logger.exception(f'An error occured while parsing markets for {event_key} ({self.league}): {e}')
+
+        return export_markets

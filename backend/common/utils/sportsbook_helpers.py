@@ -123,8 +123,8 @@ def parse_market_name(market_name: str, league: str) -> tuple[str, str, float | 
     if key not in REVERSE_MARKET_LOOKUP:
         raise NormalizationError(f'Unsupported alias: {market_key} ({league})')
 
-    market_name, market_type = REVERSE_MARKET_LOOKUP[key]
-    return market_name, market_type, line, team, player
+    parsed_market_name, market_type = REVERSE_MARKET_LOOKUP[key]
+    return parsed_market_name, market_type, line, team, player
 
 
 def parse_market_outcome(outcome_name: str, market_type: str, league: str) -> tuple[str, str | None, float | None]:

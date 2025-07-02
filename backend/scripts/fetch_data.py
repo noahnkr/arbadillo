@@ -2,7 +2,7 @@ import json
 import requests
 from urllib.parse import urlencode
 from playwright.sync_api import sync_playwright
-from common.utils.client import get_browser, get_cookies    
+from common.utils.client import get_browser
 
 def fetch_data(url, headers=None, params=None, method='requests', context=None, page=None) -> dict:
     default_headers = {
@@ -68,7 +68,7 @@ def fetch_espnbet_data():
     page = context.new_page()
 
     url = 'https://sportsbook-tsb.ca-default.thescore.bet/graphql/persisted_queries/a10930c7eba26a588efb729298364a07aa4cdcd40d456dd061dee1355bfb8e86'
-    path = '/sport/baseball/organization/united-states/competition/mlb'
+    path = '/sport/baseball/organization/united-states/competition/mlb/event/50c5f852-cb18-4139-a38b-32ccd8278a43'
 
     headers = {
         'origin': 'https://thescore.bet',
