@@ -101,8 +101,11 @@ class BetRiversClient(SportsbookClient):
                         team, player = None, None
                         participant = outcome.get('participantName')
                         if participant:
-                            last, first = participant.split(',')
-                            player = f'{first.strip()} {last.strip()}'
+                            try:
+                                team = get_team_key(participant, self.league)
+                            except NormalizationError:
+                                last, first = participant.split(',')
+                                player = f'{first.strip()} {last.strip()}'
 
                         selection_data = self.parse_selection(
                             event_key,
@@ -140,15 +143,13 @@ class BetRiversClient(SportsbookClient):
                         line = outcome.get('line')
 
                         team, player = None, None
-                        participant = outcome.get('participant')
+                        participant = outcome.get('participantName')
                         if participant:
                             try:
-                                get_team_key(participant, self.league)
-                                team = participant
+                                team = get_team_key(participant, self.league)
                             except NormalizationError:
                                 last, first = participant.split(',')
                                 player = f'{first.strip()} {last.strip()}'
-
 
                         export_selection = {
                             'market_name': market_name,
