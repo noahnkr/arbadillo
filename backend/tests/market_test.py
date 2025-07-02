@@ -42,9 +42,7 @@ class MarketTest(unittest.TestCase):
     def test_parse_selection(self):
         failures = []
 
-        client = CLIENTS['espnbet']
         event_key = self.test_data['event_key']
-
         for sportsbook, client in CLIENTS.items():
             for market in self.test_data[sportsbook]:
                 market_name = market['market_name']
@@ -66,24 +64,24 @@ class MarketTest(unittest.TestCase):
                     )
 
                     if expect_exception:
-                        failures.append(f'[FAIL] ({client}) Expected exception for {actual_selection}:\n')
+                        failures.append(f'[FAIL] ({sportsbook}) Expected exception for {actual_selection}:\n')
                     else:
                         actual = actual_selection.to_dict()
                         for key in ['sportsbook', 'league', 'event_key', 'market_key', 'status', 'value', 'collected_at']:
                             actual.pop(key, None)
 
                         if expected != actual:
-                            failures.append(f'[FAIL] ({client}) Mismatch for {market_name} | {outcome_name} | line={line}, team={team}, player={player}:\n  Expected: {expected}\n  Got: {actual}\n')
+                            failures.append(f'[FAIL] ({sportsbook}) Mismatch for {market_name} | {outcome_name} | line={line}, team={team}, player={player}:\n  Expected: {expected}\n  Got: {actual}\n')
 
                 except Exception as e:
                     if not expect_exception:
-                        failures.append(f'[FAIL] ({client}) Unexpected exception for {market_name} | {outcome_name} | line={line}, team={team}, player={player}\n')
+                        failures.append(f'[FAIL] ({sportsbook}) Unexpected exception for {market_name} | {outcome_name} | line={line}, team={team}, player={player}\n')
             
             if failures:
                 self.fail('\n\n' + '\n'.join(failures))
 
 
 if __name__ == '__main__':
-    #event_key = '2025-07-02:new-york-yankees@toronto-blue-jays'
-    #export_markets_to_file(event_key, f'data/market_test_data.json')
+    event_key = '2025-07-02:new-york-yankees@toronto-blue-jays'
+    #export_markets_to_file(event_key, f'data/{event_key.replace(":", "_")}_markets.json')
     unittest.main()
