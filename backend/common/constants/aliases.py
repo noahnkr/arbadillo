@@ -819,9 +819,11 @@ BASEBALL_MARKET_REGEX = re.compile(r'''
         runs? |
         rbis? |
         hits\s*\+\s*runs\s*\+\s*rbis
-    )
-    (?P<suffix>\s+(?:hit|allowed|scored|recorded|thrown))?
-    (?P<ou>\s*(?:o/u|over/under))?
+    )\s*
+    (?P<suffix>(?:hit|allowed|scored|recorded|thrown))?\s*
+    (?P<task_suffix>by\s+the\s+player)?\s*
+    (?P<trail>-\s+Including\s+Extra\s+Innings\s+\(Listed\s+player\s+must\s+be\s+in\s+starting\s+lineup\s+for\s+bets\s+to\s+stand\))?\s*
+    (?P<ou>(?:o/u|over/under))?
     \s*$
 ''', re.IGNORECASE | re.VERBOSE)
 
