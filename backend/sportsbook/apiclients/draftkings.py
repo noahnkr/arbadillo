@@ -121,3 +121,67 @@ class DraftKingsClient(SportsbookClient):
 				self.logger.exception(f'An error occured while parsing markets for {event_key} ({self.league}): {e}')
 
 		return market_selections
+	
+	def export_markets(self, event_key):
+		export_markets = []
+		data = self.get_markets(event_key)
+
+		market_mappings = {}
+		markets = data.get('markets', [])
+		for market in markets:
+			market_id = market['id']
+			market_name = market['name']
+			market_mappings[market_id] = market_name
+
+		selections = data.get('selections', [])
+		for selection in selections:
+			try:
+				market_id = selection['marketId']
+				if market_id not in market_mappings:
+					continue
+
+				market_name = market_mappings[market_id]
+				outcome_name = selection['label']
+
+				line = selection.get('points')
+
+				participant = selection.get('participants', [None])[0]
+				team   = participant['name'] if participant and participant.get('type') == 'Team' else None
+				player = participant['name'] if participant and participant.get('type') == 'Player' else None
+
+				export_selection = {
+					'market_name': market_name,
+					'outcome_name': outcome_name,
+					'line': line,
+					'team': team,
+					'player': player,
+					'expected': None,
+					'expected_exception': None
+				}
+
+				try:
+					selection_data = self.parse_selection(
+						event_key, 
+						market_name, 
+						outcome_name, 
+						line=line,
+						team=team,
+						player=player,
+					).to_dict()
+
+					for key in ['sportsbook', 'league', 'event_key', 'market_key', 'status', 'value', 'collected_at']:
+						selection_data.pop(key, None)
+
+					export_selection['expected'] = selection_data
+					export_selection['expected_exception'] = False
+				except NormalizationError:
+					export_selection['expected_exception'] = True
+
+				export_markets.append(export_selection)
+
+			except Exception as e:
+				self.logger.exception(f'An error occured while exporting markets for {event_key} ({self.league}): {e}')
+		
+		return export_markets
+
+		

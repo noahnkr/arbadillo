@@ -32,7 +32,7 @@ class SportsbookClient(ABC):
             db=settings.REDIS_DB,
             decode_responses=True
         )
-        self.logger = logging.getLogger(f'sportsbook.apiclients.{self.name}')
+        self.logger = logging.getLogger(self.name)
 
     def _get(self, url, headers=None, params=None, method='requests', context=None, page=None):
         default_headers = {
@@ -164,4 +164,8 @@ class SportsbookClient(ABC):
 
     @abstractmethod
     def parse_markets(self, event_key) -> list[SelectionData]:
+        pass
+
+    @abstractmethod
+    def export_markets(self, event_key):
         pass
