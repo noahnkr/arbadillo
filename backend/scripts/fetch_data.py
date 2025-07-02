@@ -58,7 +58,7 @@ def fetch_fanduel_data():
         }
         data = fetch_data(url, headers=headers, params=params, method='playwright_request', context=context)
 
-        with open('data/fanduel-schedule-data.json', 'w') as f:
+        with open('data/fanduel_schedule-data.json', 'w') as f:
             json.dump(data, f, indent=2)
 
 
@@ -90,9 +90,40 @@ def fetch_espnbet_data():
     }
     data = fetch_data(url, headers=headers, params=params, method='page_evaluate_fetch', page=page)
 
-    with open('data/espnbet-data.json', 'w') as f:
+    with open('data/espnbet_data.json', 'w') as f:
+        json.dump(data, f, indent=2)
+
+def fetch_draftkings_data():
+    browser = get_browser()
+    context = browser.new_context()
+    event_id = 32479983
+    url = f'https://sportsbook-nash.draftkings.com/api/sportscontent/dkusil/v1/events/{event_id}/categories'
+    headers = {
+        'origin': 'https://sportsbook.draftkings.com',
+        'referer': 'https://sportsbook.draftkings.com',
+    }
+    data = fetch_data(url, headers=headers, method='playwright_request', context=context)
+
+    with open('data/draftkings_data.json', 'w') as f:
+        json.dump(data, f, indent=2)
+
+
+def fetch_betrivers_data():
+    event_id = 1022036311
+    url = 'https://il.betrivers.com/api/service/sportsbook/offering/listview/details'
+    headers = {
+        'origin': 'https://betrivers.com',
+        'referer': 'https://betrivers.com'
+    }
+    params = {
+        'eventId': event_id,
+        'cageCode': 847,
+    }
+    data = fetch_data(url, headers=headers, params=params)
+
+    with open('data/betrivers_data.json', 'w') as f:
         json.dump(data, f, indent=2)
 
 
 if __name__ == '__main__':
-    fetch_espnbet_data()
+    fetch_draftkings_data()
