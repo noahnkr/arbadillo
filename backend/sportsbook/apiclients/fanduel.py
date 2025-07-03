@@ -36,7 +36,7 @@ class FanDuelClient(SportsbookClient):
         ).get('attachments', {})
     
     def get_events(self):
-        league_url = f'/content-managed-page'
+        league_url = '/content-managed-page'
         params = {
             'page': 'CUSTOM',
             'customPageId': self.league,
@@ -86,7 +86,7 @@ class FanDuelClient(SportsbookClient):
 
         event_status = 'upcoming' if self.redis.sismember(f'events:{self.league}:upcoming', event_key) else 'active'
 
-        event_url = f'/event-page'
+        event_url = '/event-page'
         params = {
             'eventId': event_id,
             'tab': 'same-game-parlay-' if event_status == 'upcoming' else 'live-sgp'
