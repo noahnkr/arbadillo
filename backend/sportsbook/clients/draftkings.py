@@ -15,7 +15,6 @@ class DraftKingsClient(SportsbookClient):
 
 	def __init__(self, sport, league):
 		super().__init__(self.NAME, sport, league)
-		self.context = get_browser().new_context()
 	
 	def _get(self, path):
 		url = self.BASE_URL + path
