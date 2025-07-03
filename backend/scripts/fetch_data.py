@@ -192,7 +192,6 @@ def fetch_betmgm_data(context, output, league, event_id=None):
         url += f'/{sport}-{SPORT_ID_MAP[sport]}/betting/usa-9/{league}-{LEAGUE_ID_MAP[league]}'
         intercept_query = 'fixtures'
     
-    print(url)
     data = fetch_data(url, context, method='page_intercept', intercept_query=intercept_query)
 
     with open(output, 'w') as f:
