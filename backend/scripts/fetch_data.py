@@ -1,14 +1,12 @@
 import argparse
 import json
-import requests
+
 from urllib.parse import urlencode
+
 from common.utils.sportsbook_helpers import get_sport_from_league
-from common.utils.client import get_browser
-from playwright.sync_api import sync_playwright
-from playwright_stealth import Stealth
+from common.utils.client import init_browser
 
-
-def fetch_data(url, headers=None, params=None, method='requests', context=None, page=None) -> dict:
+def fetch_data(url, context, headers=None, params=None, method='request', intercept_query=None):
     default_headers = {
         'accept': 'application/json',
         'content-type': 'application/json',
@@ -16,52 +14,68 @@ def fetch_data(url, headers=None, params=None, method='requests', context=None, 
     }
     final_headers = { **default_headers, **(headers or {}) }
 
-    if method == 'requests':
-        response = requests.get(url, headers=final_headers, params=params)
-        response.raise_for_status()
-        return response.json()
+    try:
+        if method == 'request':
+            response = context.request.get(url, headers=final_headers, params=params)
+            return response.json()
 
-    elif method == 'playwright_request':
-        if not context:
-            raise ValueError('Playwright context is required for method=`playwright_request`')
-        response = context.request.get(url, headers=final_headers, params=params)
-        return response
+        elif method == 'page_evaluate_fetch':
+            page = context.new_page()
+            query_str = '?' + urlencode(params or {}, doseq=True)
+            js  = f"""
+                async () => {{
+                    const res = await fetch("{url}{query_str}", {{
+                        method: 'GET',
+                        headers: {final_headers}
+                    }});
+                    return await res.json();
+                }}
+            """
+            return page.evaluate(js)
 
-    elif method == 'page_evaluate_fetch':
-        if not page:
-            raise ValueError('Playwright page is required for method=`page_evaluate_fetch`')
+        elif method == 'page_intercept':
+            if not intercept_query:
+                raise ValueError('Parameter intercept_query is required for method=`page_intercept`')
 
-        query_str = '?' + urlencode(params or {}, doseq=True)
-        js  = f"""
-            async () => {{
-                const res = await fetch("{url}{query_str}", {{
-                    method: 'GET',
-                    headers: {final_headers}
-                }});
-                return await res.json();
-            }}
-        """
-        return page.evaluate(js)
+            page = context.new_page() 
+            found = False
+            data = None
 
-    else:
-        raise ValueError(f'Unknown method `{method}`')
+            def handle_response(response):
+                nonlocal found, data
+                if intercept_query in response.url:
+                    body = response.text()
+                    parsed = json.loads(body)
+                    data = parsed
+                    found = True
+            
+            page.on('response', handle_response)
+            page.goto(url)
+
+            while not found:
+                page.wait_for_timeout(500)
+
+            return data
+
+        else:
+            raise ValueError(f'Unknown method `{method}`')
+
+    except Exception as e:
+        print(f'An exception occured: {e}')
+        return {}
 
 
-def fetch_fanduel_data(output, league=None, event_id=None):
-    browser = get_browser()
-    context = browser.new_context()
-
+def fetch_fanduel_data(context, output, league, event_id=None):
     url = 'https://sbapi.il.sportsbook.fanduel.com/api'
-    if league:
+    if event_id:
+        url += '/event-page'
+        params = { 'eventId': event_id }
+    else:
         url += '/content-managed-page'
         params = {
             'page': 'CUSTOM',
             'customPageId': league
         }
-    else:
-        url += '/event-page'
-        params = { 'eventId': event_id }
-
 
     headers = {
         'origin': 'https://sportsbook.fanduel.com',
@@ -72,19 +86,19 @@ def fetch_fanduel_data(output, league=None, event_id=None):
         'timezone': 'America%2FChicago',
         **params
     }
-    data = fetch_data(url, headers=headers, params=final_params, method='playwright_request', context=context)
+
+    data = fetch_data(url, context, headers=headers, params=final_params)
 
     with open(output, 'w') as f:
         json.dump(data, f, indent=2)
 
 
-def fetch_espnbet_data(output, league=None, event_id=None):
-    browser = get_browser()
-    context = browser.new_context()
-    page = context.new_page()
-
+def fetch_espnbet_data(context, output, league, event_id=None):
     url = 'https://sportsbook-tsb.ca-default.thescore.bet/graphql/persisted_queries/a10930c7eba26a588efb729298364a07aa4cdcd40d456dd061dee1355bfb8e86'
-    path = '/sport/baseball/organization/united-states/competition/mlb/event/50c5f852-cb18-4139-a38b-32ccd8278a43'
+    path = f'/sport/{get_sport_from_league(league)}/organization/united-states/competition/{league}'
+
+    if event_id:
+        path += f'/event/{event_id}'
 
     headers = {
         'origin': 'https://thescore.bet',
@@ -104,76 +118,116 @@ def fetch_espnbet_data(output, league=None, event_id=None):
         'operationName': 'Marketplace',
         'variables': json.dumps(variables),
     }
-    data = fetch_data(url, headers=headers, params=params, method='page_evaluate_fetch', page=page)
 
-    with open('data/espnbet_data.json', 'w') as f:
+    data = fetch_data(url, context, headers=headers, params=params, method='page_evaluate_fetch')
+
+    with open(output, 'w') as f:
         json.dump(data, f, indent=2)
 
-def fetch_draftkings_data(output, league=None, event_id=None):
-    browser = get_browser()
-    context = browser.new_context()
-    event_id = 32479983
-    url = f'https://sportsbook-nash.draftkings.com/api/sportscontent/dkusil/v1/events/{event_id}/categories'
+
+def fetch_draftkings_data(context, output, league, event_id=None):
+    LEAGUE_ID_MAP = {
+        'mlb': 84240,
+    }
+    url = 'https://sportsbook-nash.draftkings.com/api/sportscontent/dkusil/v1'
+    if event_id:
+        url += f'/leagues/{LEAGUE_ID_MAP[league]}'
+    else:
+        url = f'/events/{event_id}/categories'
     headers = {
         'origin': 'https://sportsbook.draftkings.com',
         'referer': 'https://sportsbook.draftkings.com',
     }
-    data = fetch_data(url, headers=headers, method='playwright_request', context=context)
 
-    with open('data/draftkings_data.json', 'w') as f:
+    data = fetch_data(url, context, headers=headers)
+
+    with open(output, 'w') as f:
         json.dump(data, f, indent=2)
 
 
-def fetch_betrivers_data(output, league=None, event_id=None):
-    event_id = 1022036311
-    url = 'https://il.betrivers.com/api/service/sportsbook/offering/listview/details'
+def fetch_betrivers_data(context, output, league, event_id=None):
+    CAGE_CODE = 847
+    LEAGUE_ID_MAP = {
+        'mlb': 1000093616,
+    }
+    url = 'https://il.betrivers.com/api/service/sportsbook/offering/listview'
+    if event_id:
+        url += '/details'
+        params = {
+            'eventId': event_id,
+            'cageCode': CAGE_CODE
+        }
+    else:
+        url += '/events'
+        params = {
+            'type': 'live',
+            'type': 'prematch',
+            'cageCode': CAGE_CODE,
+            'groupId': LEAGUE_ID_MAP[league],
+        }
+
     headers = {
         'origin': 'https://betrivers.com',
         'referer': 'https://betrivers.com'
     }
-    params = {
-        'eventId': event_id,
-        'cageCode': 847,
-    }
-    data = fetch_data(url, headers=headers, params=params)
+    data = fetch_data(url, context, headers=headers, params=params)
 
-    with open('data/betrivers_data.json', 'w') as f:
+    with open(output, 'w') as f:
         json.dump(data, f, indent=2)
 
 
-def fetch_betmgm_data(output, league, event_id):
-    with Stealth().use_sync(sync_playwright()) as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
-        page = context.new_page()
-        url = 'https://www.ia.betmgm.com/en/sports/events/chicago-white-sox-at-los-angeles-dodgers-17734647?tab=score'
-        page.goto(url)
-        page.wait_for_selector('div.six-pack-container')
+def fetch_betmgm_data(context, output, league, event_id=None):
+    SPORT_ID_MAP = {
+        'baseball': 23,
+    }
+    LEAGUE_ID_MAP = {
+        'mlb': 75,
+    }
+    url = 'https://www.il.betmgm.com/en/sports'
+    if event_id:
+        url += f'/events/{event_id}'
+        intercept_query = 'fixture-view'
+    else:
+        sport = get_sport_from_league(league)
+        url += f'/{sport}-{SPORT_ID_MAP[sport]}/betting/usa-9/{league}-{LEAGUE_ID_MAP[league]}'
+        intercept_query = 'fixtures'
+    
+    print(url)
+    data = fetch_data(url, context, method='page_intercept', intercept_query=intercept_query)
 
-        with open('data/betmgm_data.html', 'w', encoding='utf-8') as f:
-            f.write(page.content())
+    with open(output, 'w') as f:
+        json.dump(data, f, indent=2)
+
+
+def main(output, league, event_id):
+    browser = init_browser()
+    context = browser.new_context()
+
+    match args.sportsbook:
+        case 'fanduel': fetch_fanduel_data(context, output, league, event_id=event_id)
+        case 'draftkings': fetch_draftkings_data(context, output, league, event_id=event_id)
+        case 'espnbet': fetch_espnbet_data(context, output, league, event_id=event_id)
+        case 'betrivers': fetch_betrivers_data(context, output, league, event_id=event_id)
+        case 'betmgm': fetch_betmgm_data(context, output, league, event_id=event_id)
+        case _: print(f'Unknown sportsbook `{args.sportsbook}`')
+    
+    context.close()
+    browser.close()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('sportsbook', help='Name of the sportsbook to be fetched from')
+    parser.add_argument('league', help='Sports league')
+    parser.add_argument('-e', '--event', type=str, help='The event whose data will be fetched from')
     parser.add_argument('-o', '--output', type=str, help='The file where the output data will be written')
-
-    league_or_event = parser.add_mutually_exclusive_group(required=True)
-    league_or_event.add_argument('-e', '--event', type=int, help='The id of the event whose data will be fetched')
-    league_or_event.add_argument('-l', '--league', type=str, help='The league whose schedule data will be fetched')
 
     args = parser.parse_args()
 
     if not args.output:
         if args.event:
-            args.output = f'{args.sportsbook}_{args.event.replace(":", '_')}_data'
+            args.output = f'{args.sportsbook}_{args.league}_{args.event.replace(":", '_')}_data.json'
         elif args.league:
-            args.output = f'{args.sportsbook}_{args.league}_data'
-
-    match args.sportsbook:
-        case 'fanduel': fetch_fanduel_data(args.output, league=args.league, event_id=args.event)
-        case 'draftkings': fetch_draftkings_data(args.output, league=args.league, event_id=args.event)
-        case 'espnbet': fetch_espnbet_data(args.output, league=args.league, event_id=args.event)
-        case 'betrivers': fetch_betrivers_data(args.output, league=args.league, event_id=args.event)
-        case 'betmgm': fetch_betmgm_data(output=args.output, league=args.league, event_id=args.event)
-        case _: print(f'Unknown sportsbook `{args.sportsbook}`')
+            args.output = f'{args.sportsbook}_{args.league}_data.json'
+    
+    main(args.output, args.league, args.event)
