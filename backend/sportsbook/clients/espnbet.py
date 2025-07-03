@@ -18,7 +18,6 @@ class ESPNBetClient(SportsbookClient):
         self.context = get_browser().new_context()
 
     def _get(self, path):
-        page = self.context.new_page()
         headers = {
             'origin': 'https://thescore.bet',
             'referer': 'https://thescore.bet',
@@ -42,7 +41,6 @@ class ESPNBetClient(SportsbookClient):
             headers=headers, 
             params=params, 
             method='page_evaluate_fetch',
-            page=page
         ).get('data', {}).get('page', {}).get('defaultChild', {})
 
     def get_events(self):

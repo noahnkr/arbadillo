@@ -15,7 +15,6 @@ class FanDuelClient(SportsbookClient):
 
     def __init__(self, sport: str, league: str):
         super().__init__(self.NAME, sport, league)
-        self.context = get_browser().new_context()
     
     def _get(self, path, params):
         url = self.BASE_URL + path
@@ -28,12 +27,7 @@ class FanDuelClient(SportsbookClient):
             'timezone': 'America%2FChicago',
             **params
         }
-        return super()._get(
-            url, headers=headers,
-            params=final_params,
-            method='playwright_request',
-            context=self.context
-        ).get('attachments', {})
+        return super()._get(url, headers=headers, params=final_params).get('attachments', {})
     
     def get_events(self):
         league_url = '/content-managed-page'

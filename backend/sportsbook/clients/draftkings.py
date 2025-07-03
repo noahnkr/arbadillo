@@ -23,12 +23,7 @@ class DraftKingsClient(SportsbookClient):
 			'origin': 'https://sportsbook.draftkings.com',
 			'referer': 'https://sportsbook.draftkings.com',
 		}
-		return super()._get(
-			url, 
-			headers=headers,
-            method='playwright_request',
-            context=self.context
-		)
+		return super()._get(url, headers=headers)
 	
 	def get_events(self):
 		league_url = f'/leagues/{self.LEAGUE_ID_MAP[self.league]}'
