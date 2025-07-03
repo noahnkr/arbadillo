@@ -29,10 +29,10 @@ SPORTSBOOK_CLIENTS = { 'espnbet', 'fanduel', 'draftkings', 'betrivers' }
 CLIENT_LEAGUES = { 'mlb', }
 
 CLIENT_MAP = {
-    'espnbet': 'sportsbook.apiclients.espnbet.ESPNBetClient',
-    'draftkings': 'sportsbook.apiclients.draftkings.DraftKingsClient',
-    'fanduel': 'sportsbook.apiclients.fanduel.FanDuelClient',
-    'betrivers': 'sportsbook.apiclients.betrivers.BetRiversClient',
+    'espnbet': 'sportsbook.clients.espnbet.ESPNBetClient',
+    'draftkings': 'sportsbook.clients.draftkings.DraftKingsClient',
+    'fanduel': 'sportsbook.clients.fanduel.FanDuelClient',
+    'betrivers': 'sportsbook.clients.betrivers.BetRiversClient',
 }
 
 # ---------- Redis TTLs ----------
