@@ -6,10 +6,10 @@ import os
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings.dev')
 django.setup()
 
-from sportsbook.apiclients.espnbet import ESPNBetClient
-from sportsbook.apiclients.draftkings import DraftKingsClient
-from sportsbook.apiclients.fanduel import FanDuelClient
-from sportsbook.apiclients.betrivers import BetRiversClient
+from sportsbook.clients.espnbet import ESPNBetClient
+from sportsbook.clients.draftkings import DraftKingsClient
+from sportsbook.clients.fanduel import FanDuelClient
+from sportsbook.clients.betrivers import BetRiversClient
 
 CLIENTS = {
     'espnbet': ESPNBetClient('baseball', 'mlb'),

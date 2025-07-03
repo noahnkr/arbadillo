@@ -4,7 +4,7 @@ from celery import shared_task
 from datetime import timezone
 
 from sports.models import Team, Player, Event
-from sports.apiclients.espn import ESPNClient
+from sports.clients.espn import ESPNClient
 
 logger = logging.getLogger(__name__)
 
