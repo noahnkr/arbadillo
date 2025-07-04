@@ -6,6 +6,7 @@
 -   [x] Seperate Celery queues for scraping and database operations
 -   [x] Converet Redis HSET -> SET and add TTL
 -   [x] Fix run_periodic_scrape chaining
+-   [ ] Fix minor styling issues
 
 ## Scraping
 
