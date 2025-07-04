@@ -5,7 +5,6 @@ from dateutil.parser import isoparse
 from .base import SportsbookClient
 
 from common.utils.sportsbook_helpers import create_event_key, get_team_key
-from common.utils.client import get_browser
 from common.exceptions import NormalizationError
 
 class FanDuelClient(SportsbookClient):
@@ -15,7 +14,6 @@ class FanDuelClient(SportsbookClient):
 
     def __init__(self, sport: str, league: str):
         super().__init__(self.NAME, sport, league)
-        self.context = get_browser().new_context()
     
     def _get(self, path, params):
         url = self.BASE_URL + path
@@ -23,24 +21,18 @@ class FanDuelClient(SportsbookClient):
             'origin': 'https://sportsbook.fanduel.com',
             'referer': 'https://sportsbook.fanduel.com',
         }
-        final_params = {
-            '_ak': self.AUTH_TOKEN,
-            'timezone': 'America%2FChicago',
-            **params
-        }
-        return super()._get(
-            url, headers=headers,
-            params=final_params,
-            method='playwright_request',
-            context=self.context
-        ).get('attachments', {})
+        params.extend([
+            ('_ak', self.AUTH_TOKEN),
+            ('timezone', 'America%2FChicago'),
+        ])
+        return super()._get(url, headers=headers, params=params).get('attachments', {})
     
     def get_events(self):
         league_url = '/content-managed-page'
-        params = {
-            'page': 'CUSTOM',
-            'customPageId': self.league,
-        }
+        params = [
+            ('page', 'CUSTOM'),
+            ('customPageId', self.league),
+        ]
         data = self._get(league_url, params=params)
 
         events = data.get('events', {}).values()
@@ -87,10 +79,10 @@ class FanDuelClient(SportsbookClient):
         event_status = 'upcoming' if self.redis.sismember(f'events:{self.league}:upcoming', event_key) else 'active'
 
         event_url = '/event-page'
-        params = {
-            'eventId': event_id,
-            'tab': 'same-game-parlay-' if event_status == 'upcoming' else 'live-sgp'
-        }
+        params = [
+            ('eventId', event_id),
+            ('tab', 'same-game-parlay-' if event_status == 'upcoming' else 'live-sgp'),
+        ]
 
         markets = self._get(event_url, params=params).get('markets', {}).values()
         self.logger.info(f'Fetched {len(markets)} markets for {event_key} ({self.league})')

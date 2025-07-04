@@ -47,16 +47,18 @@ def sync_sportsbook_schedule():
 @shared_task(queue='scraping')
 def scrape_selections_for_event(sportsbook, league, event_key):
 	logger.info(f'Scraping {sportsbook} selections for {event_key}...')
-	client = get_client(sportsbook, sport=get_sport_from_league(league), league=league)
-	selections = client.parse_markets(event_key)
+	sport = get_sport_from_league(league)
+	with get_client(sportsbook, sport, league) as client:
+		selections = client.parse_markets(event_key)
 	return [s.to_dict() for s in selections]
 
 
 @shared_task(queue='scraping')
 def scrape_events_for_league(sportsbook, league):
 	logger.info(f'Scraping {sportsbook} events for {league}...')
-	client = get_client(sportsbook, sport=get_sport_from_league(league), league=league)
-	client.parse_events()
+	sport = get_sport_from_league(league)
+	with get_client(sportsbook, sport, league) as client:
+		client.parse_events()
 
 
 @shared_task(queue='database')

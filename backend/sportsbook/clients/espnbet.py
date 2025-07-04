@@ -5,7 +5,6 @@ from dateutil.parser import isoparse
 from .base import SportsbookClient
 
 from common.utils.sportsbook_helpers import create_event_key, get_team_key
-from common.utils.client import get_browser
 from common.exceptions import NormalizationError
 
 class ESPNBetClient(SportsbookClient):
@@ -15,10 +14,8 @@ class ESPNBetClient(SportsbookClient):
 
     def __init__(self, sport: str, league: str):
         super().__init__(self.NAME, sport, league)
-        self.context = get_browser().new_context()
 
     def _get(self, path):
-        page = self.context.new_page()
         headers = {
             'origin': 'https://thescore.bet',
             'referer': 'https://thescore.bet',
@@ -33,16 +30,15 @@ class ESPNBetClient(SportsbookClient):
             'includeTableMarketCard': True,
             'pageType': 'PAGE',
         }
-        params = {
-            'operationName': 'Marketplace',
-            'variables': json.dumps(variables),
-        }
+        params = [
+            ('operationName', 'Marketplace'),
+            ('variables', json.dumps(variables)),
+        ]
         return super()._get(
             self.BASE_URL, 
             headers=headers, 
             params=params, 
             method='page_evaluate_fetch',
-            page=page
         ).get('data', {}).get('page', {}).get('defaultChild', {})
 
     def get_events(self):

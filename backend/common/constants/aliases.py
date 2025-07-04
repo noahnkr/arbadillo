@@ -281,11 +281,11 @@ PRIMARY_MARKET_ALIASES = {
     },
     'spread': {
         'type': 'spread',
-        'aliases': ['spread', 'point spread', 'spread betting', 'run line', 'puck line', 'handicap', 'line', 'ats']
+        'aliases': ['spread', 'point spread', 'spread betting', 'run line', 'run line spread', 'puck line', 'handicap', 'line']
     },
     'total': {
         'type': 'total',
-        'aliases': ['total', 'game total', 'total points', 'match total', 'points total', 'goals total', 'runs total', 'over/under']
+        'aliases': ['total', 'totals', 'game total', 'total points', 'match total', 'points total', 'goals total', 'runs total', 'over/under']
     },
     'alt_spread': {
         'type': 'spread',
@@ -678,7 +678,7 @@ BASEBALL_MARKET_ALIASES = {
     },
     'batter_rbis': {
         'type': 'over_under',
-        'aliases': ['rbi', 'rbis', 'batter rbis', 'batter rbi', 'player rbis', 'player rbi', 'total rbis', 'total rbi', 'rbis milestones']
+        'aliases': ['rbi', 'rbis', 'runs batted in', 'batter rbis', 'batter rbi', 'player rbis', 'player rbi', 'total rbis', 'total rbi', 'rbis milestones']
     },
     'batter_singles': {
         'type': 'over_under',
@@ -698,7 +698,7 @@ BASEBALL_MARKET_ALIASES = {
     },
     'batter_hits_runs_rbis': {
         'type': 'over_under',
-        'aliases': ['hits + runs + rbis', 'batter hits + runs + rbis', 'player hits + runs + rbis', 'total hits + runs + rbis', 'hits + runs + rbis milestones']
+        'aliases': ['hits + runs + rbis', 'batter hits + runs + rbis', 'player hits + runs + rbis', 'total hits + runs + rbis', 'hits, runs and rbis', 'total hits, runs and rbis']
     },
     'batter_stolen_bases': {
         'type': 'over_under',
@@ -754,6 +754,7 @@ PRIMARY_MARKET_REGEX = re.compile(r'''
             first\s+5|first\s+7)\s+
         (?:half|quarter|period|innings?|set|game)
     )?\s*
+    (?P<seperator>-|:)?\s*
     (?P<alternate>alternate|alt\.?)?\s*
     (?P<market>
         money\s?lines? |
@@ -761,6 +762,7 @@ PRIMARY_MARKET_REGEX = re.compile(r'''
         point\sspreads? |
         game\sspreads? |
         run\slines? |
+        run\sline\sspread |
         puck\slines? |
         totals? |
         over/under
@@ -801,7 +803,8 @@ BASKETBALL_MARKET_REGEX = re.compile(r'''
 
 BASEBALL_MARKET_REGEX = re.compile(r'''
     ^.*?
-    (?P<dash>-)?
+    (?P<team_abbr>\([^)]*\))?\s*
+    (?P<seperator>-|:)?\s*
     (?:(?P<scope>team|player|pitcher|batter))?\s*
     (?P<task>to\s*(?:score|hit|record|allow))?\s*
     (?P<line>a|an|\d+\+)?\s*
@@ -812,12 +815,12 @@ BASEBALL_MARKET_REGEX = re.compile(r'''
         earned\s*runs |
         home\s*runs? |
         stolen\s*bases? |
-        total\s*bases? |
+        bases? |
         singles? | doubles? | triples? |
         walks? | win |
         hits? |
         runs? |
-        rbis? |
+        (?:rbis|runs\sbatted\sin)? |
         hits\s*\+\s*runs\s*\+\s*rbis
     )\s*
     (?P<suffix>(?:hit|allowed|scored|recorded|thrown))?\s*
@@ -888,6 +891,6 @@ EVENT_STATUS_ALIASES = {
 }
 
 ODDS_STATUS_ALIASES = {
-    'active': ['active', 'open', 'current', 'live', 'in'],
-    'suspended': ['suspended', 'closed'],
+    'active': ['active', 'open', 'current', 'live', 'in', 'visible'],
+    'suspended': ['suspended', 'closed', 'hidden'],
 }

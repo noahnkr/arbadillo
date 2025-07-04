@@ -3,7 +3,6 @@ from dateutil.parser import isoparse
 from .base import SportsbookClient
 
 from common.utils.sportsbook_helpers import create_event_key, get_team_key
-from common.utils.client import get_browser
 from common.exceptions import NormalizationError
 
 class DraftKingsClient(SportsbookClient):
@@ -15,7 +14,6 @@ class DraftKingsClient(SportsbookClient):
 
 	def __init__(self, sport, league):
 		super().__init__(self.NAME, sport, league)
-		self.context = get_browser().new_context()
 	
 	def _get(self, path):
 		url = self.BASE_URL + path
@@ -23,12 +21,7 @@ class DraftKingsClient(SportsbookClient):
 			'origin': 'https://sportsbook.draftkings.com',
 			'referer': 'https://sportsbook.draftkings.com',
 		}
-		return super()._get(
-			url, 
-			headers=headers,
-            method='playwright_request',
-            context=self.context
-		)
+		return super()._get(url, headers=headers)
 	
 	def get_events(self):
 		league_url = f'/leagues/{self.LEAGUE_ID_MAP[self.league]}'
