@@ -14,9 +14,13 @@ def fetch_data(url, context, headers=None, params=None, method='request', interc
     }
     final_headers = { **default_headers, **(headers or {}) }
 
+    encoded_params =  urlencode((params or []), doseq=True)
+    query_str = '?' + encoded_params if encoded_params else ''
+
+    final_url = url + query_str
     try:
         if method == 'request':
-            response = context.request.get(url, headers=final_headers, params=params)
+            response = context.request.get(final_url, headers=final_headers)
             return response.json()
 
         elif method == 'page_evaluate_fetch':
@@ -24,7 +28,7 @@ def fetch_data(url, context, headers=None, params=None, method='request', interc
             query_str = '?' + urlencode(params or {}, doseq=True)
             js  = f"""
                 async () => {{
-                    const res = await fetch("{url}{query_str}", {{
+                    const res = await fetch("{final_url}", {{
                         method: 'GET',
                         headers: {final_headers}
                     }});
@@ -44,16 +48,26 @@ def fetch_data(url, context, headers=None, params=None, method='request', interc
             def handle_response(response):
                 nonlocal found, data
                 if intercept_query in response.url:
+                    page.remove_listener('response', handle_response)
                     body = response.text()
                     parsed = json.loads(body)
                     data = parsed
                     found = True
             
             page.on('response', handle_response)
-            page.goto(url)
+            try:
+                page.goto(final_url)
 
-            while not found:
-                page.wait_for_timeout(500)
+                elapsed = 0
+                while not found and elapsed < 15000:
+                    page.wait_for_timeout(500)
+                    elapsed += 500
+
+                if not found:
+                    raise RuntimeError(f'Timeout waiting for `{intercept_query}`')
+                
+            finally:
+                page.close()
 
             return data
 
@@ -69,25 +83,24 @@ def fetch_fanduel_data(context, output, league, event_id=None):
     url = 'https://sbapi.il.sportsbook.fanduel.com/api'
     if event_id:
         url += '/event-page'
-        params = { 'eventId': event_id }
+        params = [('eventId', event_id)]
     else:
         url += '/content-managed-page'
-        params = {
-            'page': 'CUSTOM',
-            'customPageId': league
-        }
+        params = [
+            ('page', 'CUSTOM'),
+            ('customPageId', league),
+        ]
 
     headers = {
         'origin': 'https://sportsbook.fanduel.com',
         'referer': 'https://sportsbook.fanduel.com',
     }
-    final_params = {
-        '_ak': 'FhMFpcPWXMeyZxOx',
-        'timezone': 'America%2FChicago',
-        **params
-    }
+    params.extend([
+        ('_ak', 'FhMFpcPWXMeyZxOx'),
+        ('timezone', 'America%2FChicago'),
+    ])
 
-    data = fetch_data(url, context, headers=headers, params=final_params)
+    data = fetch_data(url, context, headers=headers, params=params)
 
     with open(output, 'w') as f:
         json.dump(data, f, indent=2)
@@ -114,10 +127,10 @@ def fetch_espnbet_data(context, output, league, event_id=None):
         'includeTableMarketCard': True,
         'pageType': 'PAGE',
     }
-    params = {
-        'operationName': 'Marketplace',
-        'variables': json.dumps(variables),
-    }
+    params = [
+        ('operationName', 'Marketplace'),
+        ('variables', json.dumps(variables)),
+    ]
 
     data = fetch_data(url, context, headers=headers, params=params, method='page_evaluate_fetch')
 
@@ -153,18 +166,18 @@ def fetch_betrivers_data(context, output, league, event_id=None):
     url = 'https://il.betrivers.com/api/service/sportsbook/offering/listview'
     if event_id:
         url += '/details'
-        params = {
-            'eventId': event_id,
-            'cageCode': CAGE_CODE
-        }
+        params = [
+            ('eventId', event_id),
+            ('cageCode', CAGE_CODE),
+        ]
     else:
         url += '/events'
-        params = {
-            'type': 'live',
-            'type': 'prematch',
-            'cageCode': CAGE_CODE,
-            'groupId': LEAGUE_ID_MAP[league],
-        }
+        params = [
+            ('type', 'live'),
+            ('type', 'prematch'),
+            ('cageCode', str(CAGE_CODE)),
+            ('groupId', str(LEAGUE_ID_MAP[league])),
+        ]
 
     headers = {
         'origin': 'https://betrivers.com',
@@ -225,8 +238,8 @@ if __name__ == '__main__':
 
     if not args.output:
         if args.event:
-            args.output = f'{args.sportsbook}_{args.league}_{args.event.replace(":", '_')}_data.json'
+            args.output = f'data/{args.sportsbook}_{args.league}_{args.event.replace(":", '_')}_data.json'
         elif args.league:
-            args.output = f'{args.sportsbook}_{args.league}_data.json'
+            args.output = f'data/{args.sportsbook}_{args.league}_data.json'
     
     main(args.output, args.league, args.event)

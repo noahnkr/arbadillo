@@ -1,5 +1,4 @@
 import logging
-import requests
 import json
 
 from abc import ABC, abstractmethod
@@ -18,7 +17,7 @@ from common.utils.sportsbook_helpers import (
     normalize_status_name, 
 )
 from common.utils.client import init_browser
-from common.constants.sportsbook_definitions import EVENT_TTL, ODDS_TTL
+from common.constants.sportsbook_definitions import EVENT_TTL, SELECTION_TTL
 from common.exceptions import NormalizationError
 
 class SportsbookClient(ABC):
@@ -50,18 +49,22 @@ class SportsbookClient(ABC):
 		}
         final_headers = { **default_headers, **(headers or {}) }
 
-        self.logger.info(f'Yielding request to {url} ({self.league})')
+        encoded_params =  urlencode((params or []), doseq=True)
+        query_str = '?' + encoded_params if encoded_params else ''
+
+        final_url = url + query_str
+
+        self.logger.info(f'Yielding request to {final_url} ({self.league})')
         try:
             if method == 'request':
-                response = self.context.request.get(url, headers=final_headers, params=params)
+                response = self.context.request.get(final_url, headers=final_headers)
                 return response.json()
 
             elif method == 'page_evaluate_fetch':
                 page = self.context.new_page()
-                query_str = '?' + urlencode(params or {}, doseq=True)
                 js  = f"""
                     async () => {{
-                        const res = await fetch("{url}{query_str}", {{
+                        const res = await fetch("{final_url}", {{
                             method: 'GET',
                             headers: {final_headers}
                         }});
@@ -81,16 +84,27 @@ class SportsbookClient(ABC):
                 def handle_response(response):
                     nonlocal found, data
                     if intercept_query in response.url:
+                        page.remove_listener('response', handle_response)
                         body = response.text()
                         parsed = json.loads(body)
                         data = parsed
                         found = True
                 
                 page.on('response', handle_response)
-                page.goto(url)
 
-                while not found:
-                    page.wait_for_timeout(500)
+                try:
+                    page.goto(final_url)
+
+                    elapsed = 0
+                    while not found and elapsed < 15000:
+                        page.wait_for_timeout(500)
+                        elapsed += 500
+
+                    if not found:
+                        raise RuntimeError(f'Timeout waiting for `{intercept_query}`')
+
+                finally:
+                    page.close()
 
                 return data
 
@@ -98,7 +112,7 @@ class SportsbookClient(ABC):
                 raise ValueError(f'Unknown method `{method}`')
 
         except Exception as e:
-            self.logger.exception(f'An error occured while yielding request to {url}: {e} ({self.league})')
+            self.logger.exception(f'An error occured while yielding request to {final_url}: {e} ({self.league})')
             return {}
 
     def match_espn_key(self, event_key, event_id):
@@ -116,8 +130,8 @@ class SportsbookClient(ABC):
         prev_hash = self.redis.get(redis_hash_key)
 
         if prev_hash != selection_hash:
-            self.redis.set(redis_key, json.dumps(selection.to_dict()), ex=ODDS_TTL)
-            self.redis.set(redis_hash_key, selection_hash, ex=ODDS_TTL)
+            self.redis.set(redis_key, json.dumps(selection.to_dict()), ex=SELECTION_TTL)
+            self.redis.set(redis_hash_key, selection_hash, ex=SELECTION_TTL)
             self.logger.debug(f'Updated {selection} for {selection.event_key} ({self.league})')
             return True
 

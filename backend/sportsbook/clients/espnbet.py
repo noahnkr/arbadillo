@@ -5,7 +5,6 @@ from dateutil.parser import isoparse
 from .base import SportsbookClient
 
 from common.utils.sportsbook_helpers import create_event_key, get_team_key
-from common.utils.client import get_browser
 from common.exceptions import NormalizationError
 
 class ESPNBetClient(SportsbookClient):
@@ -31,10 +30,10 @@ class ESPNBetClient(SportsbookClient):
             'includeTableMarketCard': True,
             'pageType': 'PAGE',
         }
-        params = {
-            'operationName': 'Marketplace',
-            'variables': json.dumps(variables),
-        }
+        params = [
+            ('operationName', 'Marketplace'),
+            ('variables', json.dumps(variables)),
+        ]
         return super()._get(
             self.BASE_URL, 
             headers=headers, 

@@ -26,12 +26,12 @@ class BetRiversClient(SportsbookClient):
 
     def get_events(self):
         league_url = '/events'
-        params = {
-            'type': 'live',
-            'type': 'prematch',
-            'cageCode': self.CAGE_CODE,
-            'groupId': self.LEAGUE_ID_MAP[self.league],
-        }
+        params = [
+            ('type', 'live'),
+            ('type', 'prematch'),
+            ('cageCode', self.CAGE_CODE),
+            ('groupId', self.LEAGUE_ID_MAP[self.league]),
+        ]
         data = self._get(league_url, params)
 
         events = data.get('items', [])
@@ -72,10 +72,10 @@ class BetRiversClient(SportsbookClient):
             self.logger.warning(f'Unknown event id for {event_key} ({self.league})')
             return {}
         event_url = '/details'
-        params = {
-            'eventId': event_id,
-            'cageCode': self.CAGE_CODE,
-        }
+        params = [
+            ('eventId', event_id),
+            ('cageCode', self.CAGE_CODE),
+        ]
         data = self._get(event_url, params)
 
         markets = [market for category in data.get('offeringGroups', []) for market in category['criterionGroups']]
