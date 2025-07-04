@@ -19,10 +19,9 @@ def create_market_key(
     ) -> str:
     """Creates an index on a specific market selection across sportsbooks."""
     components = [market]
-    if market not in PRIMARY_MARKETS:
-        if line: components.append(str(line))
-        if player: components.append(player)
-        if team: components.append(team)
+    if line: components.append(str(line))
+    if player: components.append(player)
+    if team: components.append(team)
     return ':'.join(components)
 
 
