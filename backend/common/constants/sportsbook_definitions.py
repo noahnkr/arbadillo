@@ -24,7 +24,7 @@ MARKET_TYPES = { 'moneyline', 'spread', 'total', 'over_under', 'yes_no', }
 
 # ---------- Clients ----------
 
-SPORTSBOOK_CLIENTS = { 'espnbet', 'fanduel', 'draftkings', 'betrivers' }
+SPORTSBOOK_CLIENTS = { 'espnbet', 'fanduel', 'draftkings', 'betrivers', 'betmgm', }
 
 CLIENT_LEAGUES = { 'mlb', }
 
@@ -33,10 +33,11 @@ CLIENT_MAP = {
     'draftkings': 'sportsbook.clients.draftkings.DraftKingsClient',
     'fanduel': 'sportsbook.clients.fanduel.FanDuelClient',
     'betrivers': 'sportsbook.clients.betrivers.BetRiversClient',
+    'betmgm': 'sportsbook.clients.betmgm.BetMGMClient',
 }
 
 # ---------- Redis TTLs ----------
 
 EVENT_TTL = 60 * 60 * 24
 
-ODDS_TTL = 60 * 60
+SELECTION_TTL = 60 * 60
