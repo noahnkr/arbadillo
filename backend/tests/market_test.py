@@ -10,12 +10,18 @@ from sportsbook.clients.espnbet import ESPNBetClient
 from sportsbook.clients.draftkings import DraftKingsClient
 from sportsbook.clients.fanduel import FanDuelClient
 from sportsbook.clients.betrivers import BetRiversClient
+from sportsbook.clients.betmgm import BetMGMClient
+
+SPORT = 'baseball'
+
+LEAGUE = 'mlb'
 
 CLIENTS = {
-    'espnbet': ESPNBetClient('baseball', 'mlb'),
-    'draftkings': DraftKingsClient('baseball', 'mlb'),
-    'fanduel': FanDuelClient('baseball', 'mlb'),
-    'betrivers': BetRiversClient('baseball', 'mlb')
+    'espnbet': ESPNBetClient(SPORT, LEAGUE),
+    'draftkings': DraftKingsClient(SPORT, LEAGUE),
+    'fanduel': FanDuelClient(SPORT, LEAGUE),
+    'betrivers': BetRiversClient(SPORT, LEAGUE),
+    'betmgm': BetMGMClient(SPORT, LEAGUE),
 }
 
 def export_markets_to_file(event_key, output):
@@ -64,7 +70,7 @@ class MarketTest(unittest.TestCase):
                     )
 
                     if expect_exception:
-                        failures.append(f'[FAIL] ({sportsbook}) Expected exception for {actual_selection}:\n')
+                        failures.append(f'[FAIL] ({sportsbook}) Expected exception for {market_name} | {outcome_name} | line={line}, team={team}, player={player}\n Got: {actual_selection}:\n')
                     else:
                         actual = actual_selection.to_dict()
                         for key in ['sportsbook', 'league', 'event_key', 'market_key', 'status', 'value', 'collected_at']:
@@ -82,6 +88,6 @@ class MarketTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    event_key = '2025-07-02:new-york-yankees@toronto-blue-jays'
-    #export_markets_to_file(event_key, f'data/{event_key.replace(":", "_")}_markets.json')
+    event_key = '2025-07-04:detroit-tigers@cleveland-guardians'
+    #export_markets_to_file(event_key, f'data/market_test_data.json')
     unittest.main()
