@@ -1,4 +1,5 @@
 import logging
+import time
 
 from celery import shared_task, group, chord
 from redis import Redis
@@ -46,11 +47,18 @@ def sync_sportsbook_schedule():
 
 @shared_task(queue='scraping')
 def scrape_selections_for_event(sportsbook, league, event_key):
+	start = time.perf_counter()
 	logger.info(f'Scraping {sportsbook} selections for {event_key}...')
 	sport = get_sport_from_league(league)
-	with get_client(sportsbook, sport, league) as client:
-		selections = client.parse_markets(event_key)
-	return [s.to_dict() for s in selections]
+	try:
+		with get_client(sportsbook, sport, league) as client:
+			selections = client.parse_markets(event_key)
+		return [s.to_dict() for s in selections]
+	finally:
+		elapsed = time.perf_counter() - start
+		redis_key = f'{sportsbook}:timing:scrape_selections_for_event:{league}:{event_key}'
+		redis.set(redis_key, elapsed)
+		logger.debug(f'Scraped {sportsbook} selections for {event_key} in {elapsed:.2f} seconds.')
 
 
 @shared_task(queue='scraping')
@@ -63,6 +71,22 @@ def scrape_events_for_league(sportsbook, league):
 
 @shared_task(queue='database')
 def batch_upsert_selections(selection_data_lists: list):
+	# Aggregate scraping times from previous tasks
+	for sportsbook in SPORTSBOOK_CLIENTS:
+		for league in CLIENT_LEAGUES:
+			keys = redis.keys(f'{sportsbook}:timing:scrape_selections_for_event:{league}:*')
+			durations = [float(redis.get(k)) for k in keys]
+
+			total_time = sum(durations)
+			avg_time = total_time / len(durations) if durations else 0
+
+			logger.info(f'Total {sportsbook} execution time for {league}: {total_time:.2f} seconds.')
+			logger.info(f'Avg. {sportsbook} execution time for for {league}: {avg_time:.2f} seconds.')
+
+			if keys:
+				redis.delete(*keys)
+
+	# Flatten nested lists and load selection data
 	selection_data = [
 		SelectionData.from_dict(s)
 		for sublist in selection_data_lists 

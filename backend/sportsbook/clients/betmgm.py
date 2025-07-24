@@ -20,30 +20,23 @@ class BetMGMClient(SportsbookClient):
     def __init__(self, sport, league):
         super().__init__(self.NAME, sport, league)
 
-    def _get(self, path, params, intercept_query):
+    def _get(self, path, intercept_query):
         url = self.BASE_URL + path
         headers = {
             'origin': 'https://ww.il.betmgm.com',
             'referer': 'https://ww.il.betmgm.com',
         }
-        params.extend([
-            ('x-bwin-accessid', self.AUTH_TOKEN),
-            ('state', 'Latest'),
-        ])
         return super()._get(
             url,
             headers=headers,
-            params=params,
             method='page_intercept',
             intercept_query=intercept_query
         )
         
     def get_events(self):
         league_url = f'/{self.sport}-{self.SPORT_ID_MAP[self.sport]}/betting/usa-9/{self.league}-{self.LEAGUE_ID_MAP[self.league]}'
-        params = [('sportIds', self.SPORT_ID_MAP[self.sport])]
         data = self._get(
             league_url, 
-            params=params, 
             intercept_query='fixtures'
         )
 
@@ -87,10 +80,8 @@ class BetMGMClient(SportsbookClient):
             self.logger.warning(f'Unknown event id or event path for {event_key} ({self.league})')
             return {}
         event_url = f'/events{event_path}'
-        params = [('fixtureIds', event_id)]
         data = self._get(
             event_url, 
-            params=params,
             intercept_query='fixture-view'
         )
 
