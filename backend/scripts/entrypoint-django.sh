@@ -23,8 +23,8 @@ python manage.py makemigrations sportsbook
 python manage.py migrate
 
 # Bootstrap initial data
-echo "Triggering bootstrap task..."
-celery -A core call core.tasks.bootstrap_initial_data --queue scraping
+#echo "Triggering bootstrap task..."
+#celery -A core call core.tasks.bootstrap_initial_data --queue scraping
 
 # Start server
 echo "Starting Django..."
