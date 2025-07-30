@@ -120,18 +120,8 @@ def batch_upsert_selections(selection_data_lists: list):
 		)
 	}
 
-	event_map = {
-		e.event_key: e
-		for e in Event.objects.filter(event_key__in=[s.event_key for s in selection_data])
-	}
-
 	for selection in selection_data:
 		key = (selection.sportsbook, selection.league, selection.event_key, selection.market_key, selection.outcome)
-		event = event_map.get(selection.event_key)
-		if not event:
-			event_key = selection.event_key
-			logger.warning(f'Event foriegn key {event_key} does not exist')
-			continue
 		
 		existing = existing_selections.get(key)
 		if existing:
@@ -144,7 +134,7 @@ def batch_upsert_selections(selection_data_lists: list):
 					setattr(existing, field, getattr(selection, field))
 				to_update.append(existing)
 		else:
-			to_create.append(Selection(event=event, **selection.to_dict()))
+			to_create.append(Selection(**selection.to_dict()))
 
 	if to_create:
 		Selection.objects.bulk_create(to_create)
