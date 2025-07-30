@@ -1,5 +1,6 @@
 import logging
 
+from django.utils.timezone import is_naive, make_aware
 from celery import shared_task
 from datetime import timezone
 
@@ -31,52 +32,40 @@ def sync_teams(sport: str, league: str):
 def sync_schedule(sport: str, league: str):
 	logger.info('Syncing ESPN schedule...')
 	client = ESPNClient(sport, league)
-	_, upsert_events = client.get_schedule()
+	_, upsert_events = client.get_upcoming_events()
 
 	logger.info(f'Upserting {len(upsert_events)} event(s)')
 	for event in upsert_events:
-		try:
-			away_team = Team.objects.get(team_key=event.away_team_key)
-			home_team = Team.objects.get(team_key=event.home_team_key)
-
-			start_time = event.start_time.replace(tzinfo=timezone.utc)
-
-			Event.objects.update_or_create(
-				event_key=event.event_key,
-				defaults={
-					'espn_id': event.espn_id,
-					'league': event.league,
-					'away_team': away_team,
-					'home_team': home_team,
-					'start_time': start_time,
-					'status': event.status,
-				}
-			)
-		except Team.DoesNotExist:
-			logger.warning(f'Missing team(s) record for {event}')
+		Event.objects.update_or_create(
+			event_key=event.event_key,
+			defaults={
+				'espn_id': event.espn_id,
+				'league': event.league,
+				'away_team': event.away_team,
+				'home_team': event.home_team,
+				'start_time': make_aware(event.start_time, timezone.utc) if is_naive(event.start_time) else event.start_time,
+				'status': event.status,
+				'collected_at': event.collected_at,
+			}
+		)
 
 
 @shared_task(queue='scraping')
 def sync_players(sport: str, league: str, team_key: str):
 	logger.info(f'Syncing {team_key} roster...')
 	client = ESPNClient(sport, league)
-	_, upsert_players = client.get_roster(team_key)
+	_, upsert_players = client.get_players(team_key)
 
 	logger.info(f'Upserting {len(upsert_players)} player(s)')
-	try:
-		team = Team.objects.get(team_key=team_key)
-	except Team.DoesNotExist:
-		logger.warning(f'Missing team record for {team_key}')
-		return
 
 	for player in upsert_players:
 		Player.objects.update_or_create(
-			espn_id=player.espn_id,
+			player_key=player.player_key,
 			defaults={
+				'espn_id': player.espn_id,
 				'league': player.league,
+				'team_key': player.team_key,
 				'name': player.name,
-				'team': team,
-				'player_key': player.player_key,
 				'position': player.position,
 			}
 		)
