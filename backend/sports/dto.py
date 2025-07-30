@@ -19,7 +19,6 @@ class TeamData:
         parts = [str(getattr(self, f.name)) for f in fields(self)]
         raw = '|'.join(parts)
         return int.from_bytes(hashlib.sha256(raw.encode()).digest()[:8], 'big')
-
     
     def to_dict(self) -> dict:
         return asdict(self)
@@ -51,14 +50,14 @@ class EventData:
     espn_id: int
     league: str
     event_key: str
-    away_team_key: int
-    home_team_key: int
+    away_team: str
+    home_team: str
     start_time: datetime
     status: str
     collected_at: datetime = field(default_factory=now)
     
     def __repr__(self) -> str:
-        return f'{self.start_time.strftime("%Y-%m-%d")} - {self.away_team_key} @ {self.home_team_key} ({self.league})'
+        return f'{self.start_time.strftime("%Y-%m-%d")} - {self.away_team} @ {self.home_team} ({self.league})'
 
     def __hash__(self) -> int:
         parts = [
@@ -83,3 +82,69 @@ class EventData:
             **{k: v for k,v in d.items() if k not in {'start_time','collected_at'}}
         )
 
+
+@dataclass(frozen=True)
+class EventResultData:
+    league: str
+    event_key: str
+    away_score: int
+    home_score: int
+    margin_of_victory: int
+    winner: str
+
+    def __repr__(self) -> str:
+        return f'{self.away_score} | {self.home_score} ({self.winner})'
+    
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+@dataclass(frozen=True)
+class PlayerStatData:
+    league: str
+    event_key: str
+    player_key: str
+    stat_name: str
+    value: float
+
+    def __hash__(self):
+        return hash((self.league, self.event_key, self.player_key, self.stat_name))
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, PlayerStatData) and
+            self.league == other.league and
+            self.event_key == other.event_key and
+            self.player_key == other.player_key and
+            self.stat_name == other.stat_name
+        )
+
+    def  __repr__(self) -> str:
+        return f'{self.player_key} ({self.team_key}) | {self.stat_name} - {self.value}'
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+@dataclass(frozen=True)
+class TeamStatData:
+    league: str
+    event_key: str
+    team_key: str
+    stat_name: str
+    value: float
+
+    def __hash__(self):
+        return hash((self.league, self.event_key, self.team_key, self.stat_name))
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, TeamStatData) and
+            self.league == other.league and
+            self.event_key == other.event_key and
+            self.team_key == other.team_key and
+            self.stat_name == other.stat_name
+        )
+    def  __repr__(self) -> str:
+        return f'{self.team_key} ({self.league}) | {self.stat_name} - {self.value}'
+
+    def to_dict(self) -> dict:
+        return asdict(self)

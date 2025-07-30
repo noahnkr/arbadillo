@@ -1,7 +1,5 @@
 from django.db import models
 
-from sports.models import Event
-
 class Selection(models.Model):
     class Status(models.TextChoices):
         ACTIVE = 'active', 'Active'
@@ -9,7 +7,7 @@ class Selection(models.Model):
 
     sportsbook = models.CharField(max_length=50)
     league = models.CharField(max_length=20)
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='odds')
+    event = models.CharField(max_length=100)
     event_key = models.CharField(max_length=100)
     market_key = models.CharField(max_length=100)
     market = models.CharField(max_length=50)
