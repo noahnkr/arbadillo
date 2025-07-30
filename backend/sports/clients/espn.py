@@ -1,7 +1,9 @@
 import json
 import requests
 import logging
+import time
 
+from requests import HTTPError
 from datetime import datetime, timedelta
 from dateutil import tz
 from redis import Redis
@@ -10,7 +12,13 @@ from django.conf import settings
 from sports.dto import (
     TeamData, 
     PlayerData, 
-    EventData
+    EventData,
+	EventResultData,
+	PlayerStatData,
+	TeamStatData,
+)
+from common.constants.aliases import (
+	EFFICIENCY_STATS, REVERSE_STATS_LOOKUP,
 )
 from common.utils.sportsbook_helpers import (
     create_event_key, 
@@ -22,7 +30,8 @@ from common.exceptions import NormalizationError
 
 class ESPNClient:
 	NAME = 'espn'
-	BASE_URL = 'https://site.api.espn.com/apis/site/v2/sports'
+	V2_BASE_URL = 'https://site.api.espn.com/apis/site/v2/sports'
+	V3_BASE_URL = 'https://site.web.api.espn.com/apis/common/v3/sports'
 
 	def __init__(self, sport: str, league: str):
 		self.sport = sport
@@ -35,10 +44,26 @@ class ESPNClient:
         )
 		self.logger = logging.getLogger(self.NAME)
 
-	def _get(self, path: str, params: dict = None):
-		url = f'{self.BASE_URL}/{self.sport}/{self.league}{path}'
-		response = requests.get(url, params=params)
-		response.raise_for_status()
+	def _get(self, path: str, params: dict = None, v2: bool = True):
+		base_url = self.V2_BASE_URL if v2 else self.V3_BASE_URL
+		url = f'{base_url}/{self.sport}/{self.league}{path}'
+
+		retries = 3
+		got_response = False
+		while retries > 0 and not got_response:
+			try:
+				response = requests.get(url, params=params)
+				response.raise_for_status()
+				got_response = True
+			except HTTPError:
+				self.logger.warning(f'A HTTPError occured while yielding request to {url}. Retrying {retries} more times...')
+				retries -= 1
+				time.sleep(3)
+		
+		if retries == 0 and not got_response:
+			self.logger.critical(f'Unable to recieve response from {url}')
+			return {}
+
 		return response.json()
 
 	def get_teams(self) -> tuple[list[TeamData], list[TeamData]]:
@@ -72,10 +97,10 @@ class ESPNClient:
 		self.logger.info(f'Scraped {len(upsert_teams)} team(s) ({self.league})')
 		return teams, upsert_teams
 
-	def get_roster(self, team_key) -> tuple[list[PlayerData], list[PlayerData]]:
+	def get_players(self, team_key) -> tuple[list[PlayerData], list[PlayerData]]:
 		team_id = self.redis.get(f'teams:ids:{self.league}:{team_key}')
 		if not team_id:
-			self.logger.warning(f'Missing ESPN id for {team_key} ({self.league})')
+			self.logger.warning(f'Missing ESPN id for {team_key} players ({self.league})')
 			return []
 
 		raw = self._get(f'/teams/{team_id}/roster')
@@ -101,17 +126,43 @@ class ESPNClient:
 		self.logger.info(f'Scraped {len(upsert_players)} player(s) ({self.league})')
 		return players, upsert_players
 
-	def get_schedule(self) -> tuple[list[EventData], list[EventData]]:
+	def get_events(self, team_key, season) -> list[EventData]:
+		team_id = self.redis.get(f'teams:ids:{self.league}:{team_key}')
+		if not team_id:
+			self.logger.warning(f'Unknown ESPN id for {team_key} events ({self.league})')
+			return []
+
+		events = []
+		for season_type in range(2, 4):
+			raw = self._get(f'/teams/{team_id}/schedule', params={'season': season, 'seasontype': season_type})
+			events.extend([
+				self.parse_event(competition)
+				for event in raw['events']
+				for competition in event['competitions']
+			])
+		
+		for event in events:
+			self.redis.set(f'events:keys:{self.league}:{event.espn_id}', event.event_key, ex=EVENT_TTL)
+			self.redis.set(f'events:ids:{self.league}:{event.event_key}', event.espn_id, ex=EVENT_TTL)
+		
+		self.logger.info(f'Scraped {len(events)} events for {season} {team_key} ({self.league})')
+		return events
+
+	def get_upcoming_events(self, days=3) -> tuple[list[EventData], list[EventData]]:
 		events = []
 		central = tz.gettz('America/Chicago')
-		for days in range(0, 3):
+		for days in range(0, days):
 			date = (datetime.now(tz=central) + timedelta(days=days)).strftime('%Y%m%d')
 			raw = self._get('/scoreboard', params={'dates': date})
-			events.extend(self.parse_event(e) for e in raw['events'])
+			events.extend([
+				self.parse_event(competition)
+				for event in raw['events']
+				for competition in event['competitions']
+			])
 		
 		upsert_events = []
 		for event in events:
-			if not event.away_team_key or not event.home_team_key:
+			if not event.away_team or not event.home_team:
 				self.logger.warning(f'Missing team(s) for ESPN event id {event.espn_id}')
 				continue
 
@@ -136,6 +187,30 @@ class ESPNClient:
 		self.logger.info(f'Scraped {len(upsert_events)} event(s) ({self.league})')
 		return events, upsert_events
 	
+	def get_event_stats(self, event_key) -> tuple[EventResultData, list[TeamStatData], list[TeamStatData]]:
+		event_id = self.redis.get(f'events:ids:{self.league}:{event_key}')
+		if not event_id:
+			self.logger.warning(f'Missing ESPN id for {event_key} stats ({self.league})')
+			return [], []
+
+		raw = self._get(f'/summary', params={'event': event_id})
+		event_results, away_team_stats, home_team_stats = self.parse_event_stats(raw, event_key)
+		self.logger.info(f'Scraped {len(away_team_stats + home_team_stats)} stats for {event_key} ({self.league})')
+
+		return event_results, away_team_stats, home_team_stats
+
+	def get_player_stats(self, player_key, season) -> list[PlayerStatData]:
+		player_id = self.redis.get(f'players:ids:{self.league}:{player_key}')
+		if not player_id:
+			self.logger.warning(f'Missing ESPN id for {player_key} stats ({self.league})')
+			return []
+		
+		raw = self._get(f'/athletes/{player_id}/gamelog', params={'season': season, 'seasontype': '2,3'}, v2=False)
+		player_stats = self.parse_player_stats(raw, player_key)
+
+		self.logger.info(f'Scraped {len(player_stats)} stats for {season} {player_key} ({self.league})')
+		return player_stats
+
 	def parse_team(self, team_json) -> TeamData:
 		return TeamData(
 			espn_id=int(team_json['id']),
@@ -143,6 +218,85 @@ class ESPNClient:
 			team_key=get_team_key(team_json['displayName'], self.league),
 			name=team_json['displayName'],
 		)
+
+	def parse_event_stats(self, event_stats_json, event_key) -> tuple[EventResultData, list[TeamStatData], list[TeamStatData]]:
+		away_team_stats, home_team_stats = [], []
+
+		event_stats_kwargs = { 'league': self.league, 'event_key': event_key }
+		for team in event_stats_json['header']['competitions'][0]['competitors']:
+
+			team_key = self.redis.get(f'teams:keys:{self.league}:{team["id"]}')
+			is_away = team['homeAway'] == 'away'
+			is_winner = team['winner']
+
+			if is_winner:
+				event_stats_kwargs['winner'] = team_key
+
+			score_key = ('away_score' if is_away else 'home_score')
+			event_stats_kwargs[score_key] = int(team['score'])
+
+		event_stats_kwargs['margin_of_victory'] = abs(event_stats_kwargs['away_score'] - event_stats_kwargs['home_score'])
+
+		event_results = EventResultData(**event_stats_kwargs)
+
+		for team in event_stats_json['boxscore']['teams']:
+			team_key = self.redis.get(f'teams:keys:{self.league}:{team["team"]["id"]}')
+			is_away = team['homeAway'] == 'away'
+
+			for team_stat in team['statistics']:
+				label = team_stat['label']
+				value = team_stat['displayValue']
+
+				if label in EFFICIENCY_STATS:
+					try:
+						sep = '-' if '-' in value else '/'
+						num, denom = map(int, value.split(sep))
+						conv_name, att_name = EFFICIENCY_STATS[label]
+
+						conv_stat = TeamStatData(
+							league=self.league,
+							event_key=event_key,
+							team_key=team_key,
+							stat_name=conv_name,
+							value=float(num),
+						)
+
+						att_stat = TeamStatData(
+							league=self.league,
+							event_key=event_key,
+							team_key=team_key,
+							stat_name=att_name,
+							value=float(denom),
+						)
+
+						(away_team_stats if is_away else home_team_stats).extend([conv_stat, att_stat])
+					except Exception as e:
+						self.logger.warning(f'Failed to parse efficiency stat {label} ({value}): {e}')
+
+				else:
+					try:
+						stat_name = REVERSE_STATS_LOOKUP.get((self.league, label))
+						if stat_name is None or '-' in value:
+							continue
+						
+						# Parse time stat
+						if ':' in value:
+							mins, secs = value.split(':')
+							value = int(mins) * 60 + int(secs)
+
+						stat = TeamStatData(
+							league=self.league,
+							event_key=event_key,
+							team_key=team_key,
+							stat_name=stat_name,
+							value=round(float(value), 3)
+						)
+
+						(away_team_stats if is_away else home_team_stats).append(stat)
+					except Exception as e:
+						self.logger.warning(f'Failed to parse stat {label} ({value}): {e}')
+
+		return event_results, away_team_stats, home_team_stats
 
 	def parse_player(self, player_json, team_key) -> PlayerData:
 		return PlayerData(
@@ -154,8 +308,49 @@ class ESPNClient:
 			position=player_json['position']['name'],
 		)
 
+	def parse_player_stats(self, player_stats_json, player_key) -> list[PlayerStatData]:
+		try:
+			stat_names = [
+				REVERSE_STATS_LOOKUP[(self.league, name)]
+				if (self.league, name) in REVERSE_STATS_LOOKUP
+				else None
+				for name in player_stats_json.get('displayNames', [])
+			]
+			events = [
+				event
+				for season_type in player_stats_json.get('seasonTypes', [])
+				for category in season_type.get('categories', [])
+				for event in category.get('events', [])
+			]
+		except Exception as e:
+			self.logger.warning(f'An error occured while collecting game log for {player_key} ({self.league}): {e}')
+			return []
+
+		player_stats = []
+		for event in events:
+			event_key = self.redis.get(f'events:keys:{self.league}:{event["eventId"]}')
+
+			if event_key is None:
+				self.logger.warning(f'Unknown event key for ESPN id {event["eventId"]} for {player_key} ({self.league})')
+				continue
+
+			stats = event.get('stats', [])
+			for i, value in enumerate(stats):
+				if stat_names[i] is None or '-' in value:
+					continue
+
+				player_stats.append(PlayerStatData(
+					league=self.league,
+					event_key=event_key,
+					player_key=player_key,
+					stat_name=stat_names[i],
+					value=round(float(value), 3)
+				))
+		
+		return player_stats
+
 	def parse_event(self, event_json) -> EventData:
-		competitors = event_json['competitions'][0]['competitors']
+		competitors = event_json['competitors']
 		away_team_id = competitors[0]['id'] if competitors[0]['homeAway'] == 'away' else competitors[1]['id']
 		home_team_id = competitors[0]['id'] if competitors[0]['homeAway'] == 'home' else competitors[1]['id']
 
@@ -170,8 +365,8 @@ class ESPNClient:
 			espn_id=event_json['id'],
 			league=self.league,
 			event_key=event_key,
-			away_team_key=away_team_key,
-			home_team_key=home_team_key,
+			away_team=away_team_key,
+			home_team=home_team_key,
 			start_time=start_time,
 			status=normalize_status_name(event_json['status']['type']['state'], is_odds=False),
 		)
