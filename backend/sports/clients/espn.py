@@ -250,8 +250,7 @@ class ESPNClient:
 		for home_away, scoring in event_scoring_kwargs.items():
 			is_away = home_away == 'away_team'
 
-			team_stats = away_team_stats if is_away else home_team_stats
-			team_stats.extend([
+			(away_team_stats if is_away else home_team_stats).extend([
 				TeamStatData(
 					league=self.league,
 					event_key=event_key,
