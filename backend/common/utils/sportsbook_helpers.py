@@ -1,12 +1,9 @@
-import hashlib
-import json
-
 from common.utils.strings import clean_str, extract_float
 from common.constants.aliases import (
-    REVERSE_MARKET_LOOKUP, REVERSE_TEAM_LOOKUP, EVENT_STATUS_ALIASES, ODDS_STATUS_ALIASES, 
+    REVERSE_MARKET_LOOKUP, REVERSE_TEAM_LOOKUP, EVENT_STATUS_ALIASES, SELECTION_STATUS_ALIASES, 
     MARKET_REGEXES, PRIMARY_MARKET_REGEX, MARKET_OUTCOME_REGEXES,
 )
-from common.constants.sportsbook_definitions import SPORTS_LEAGUES, PRIMARY_MARKETS
+from common.constants.sports_definitions import SPORTS_LEAGUES
 from common.exceptions import NormalizationError
 
 def create_event_key(date: str, away:str, home:str) -> str:
@@ -149,7 +146,7 @@ def parse_market_outcome(outcome_name: str, market_type: str, league: str) -> tu
 
 def normalize_status_name(status: str, is_odds=True) -> str:
     """Normalizes a sportbook's event status to a standard format."""
-    status_aliases = ODDS_STATUS_ALIASES if is_odds else EVENT_STATUS_ALIASES
+    status_aliases = SELECTION_STATUS_ALIASES if is_odds else EVENT_STATUS_ALIASES
     for standard, statuses in status_aliases.items():
         if clean_str(status) in map(clean_str, statuses):
             return standard
