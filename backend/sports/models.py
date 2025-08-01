@@ -5,9 +5,16 @@ class Event(models.Model):
         UPCOMING = 'upcoming', 'Upcoming'
         ACTIVE = 'active', 'Active'
         COMPLETED = 'completed', 'Completed'
+    
+    class SeasonTypes(models.TextChoices):
+        PRESEASON = 'preseason', 'Preseason'
+        REGULAR = 'regular', 'Regular'
+        POSTSEASON  = 'postseason', 'Postseason'
 
     espn_id = models.CharField(max_length=20, unique=True)
     league = models.CharField(max_length=20)
+    season = models.IntegerField()
+    season_type = models.CharField(max_length=10, choices=SeasonTypes.choices, default=SeasonTypes.REGULAR)
     event_key = models.CharField(max_length=100, unique=True)
     away_team = models.CharField(max_length=100)
     home_team = models.CharField(max_length=100)
@@ -19,11 +26,11 @@ class Event(models.Model):
 class EventResult(models.Model):
     league = models.CharField(max_length=50)
     event_key = models.CharField(max_length=100, unique=True)
-    home_score = models.IntegerField()
     away_score = models.IntegerField()
-    margin_of_victory = models.IntegerField()
+    home_score = models.IntegerField()
+    margin = models.IntegerField()
+    total = models.IntegerField()
     winner = models.CharField(max_length=100)
-    collected_at = models.DateTimeField(auto_now_add=True)
 
 
 class Team(models.Model):

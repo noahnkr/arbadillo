@@ -25,6 +25,7 @@ from common.utils.sportsbook_helpers import (
 	get_team_key,
 	normalize_status_name, 
 )
+from common.utils.sports_helpers import normalize_season_type
 from common.constants.sportsbook_definitions import EVENT_TTL, EVENT_STATUSES
 from common.exceptions import NormalizationError
 
@@ -390,9 +391,14 @@ class ESPNClient:
 		start_date = start_time.strftime('%Y-%m-%d')
 		event_key = create_event_key(start_date, away_team_key, home_team_key)
 
+		season = event_json['season']['year']
+		season_type = event_json['seasonType']['abbreviation']
+
 		return EventData(
 			espn_id=event_json['id'],
 			league=self.league,
+			season=season,
+			season_type=normalize_season_type(season_type),
 			event_key=event_key,
 			away_team=away_team_key,
 			home_team=home_team_key,
