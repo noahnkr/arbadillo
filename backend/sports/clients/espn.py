@@ -222,23 +222,53 @@ class ESPNClient:
 	def parse_event_stats(self, event_stats_json, event_key) -> tuple[EventResultData, list[TeamStatData], list[TeamStatData]]:
 		away_team_stats, home_team_stats = [], []
 
-		event_stats_kwargs = { 'league': self.league, 'event_key': event_key }
-		for team in event_stats_json['header']['competitions'][0]['competitors']:
+		# Collect event results stats for labels
+		event_results_kwargs = { 'league': self.league, 'event_key': event_key }
+		event_scoring_kwargs = { 'away_team': {}, 'home_team': {} }
 
+		for team in event_stats_json['header']['competitions'][0]['competitors']:
 			team_key = self.redis.get(f'teams:keys:{self.league}:{team["id"]}')
 			is_away = team['homeAway'] == 'away'
 			is_winner = team['winner']
 
 			if is_winner:
-				event_stats_kwargs['winner'] = team_key
+				event_results_kwargs['winner'] = team_key
 
 			score_key = ('away_score' if is_away else 'home_score')
-			event_stats_kwargs[score_key] = int(team['score'])
+			score = int(team['score'])
+			event_results_kwargs[score_key] = score
 
-		event_stats_kwargs['margin_of_victory'] = abs(event_stats_kwargs['away_score'] - event_stats_kwargs['home_score'])
+			event_scoring_kwargs[('away_team' if is_away else 'home_team')]['team_key'] = team_key
+			event_scoring_kwargs[('away_team' if is_away else 'home_team')]['points_scored'] = score
+			event_scoring_kwargs[('home_team' if is_away else 'away_team')]['points_allowed'] = score
 
-		event_results = EventResultData(**event_stats_kwargs)
+		event_results_kwargs['margin_of_victory'] = abs(event_results_kwargs['away_score'] - event_results_kwargs['home_score'])
+		event_results_kwargs['total_points'] = event_results_kwargs['away_score'] + event_results_kwargs['home_score']
+		event_results = EventResultData(**event_results_kwargs)
 
+		# Collect team scoring results for features
+		for home_away, scoring in event_scoring_kwargs.items():
+			is_away = home_away == 'away_team'
+
+			team_stats = away_team_stats if is_away else home_team_stats
+			team_stats.extend([
+				TeamStatData(
+					league=self.league,
+					event_key=event_key,
+					team_key=scoring['team_key'],
+					stat_name='points_scored',
+					value=scoring['points_scored']
+				),
+				TeamStatData(
+					league=self.league,
+					event_key=event_key,
+					team_key=scoring['team_key'],
+					stat_name='points_allowed',
+					value=scoring['points_allowed']
+				)
+			])
+
+		# Collect team event stats
 		for team in event_stats_json['boxscore']['teams']:
 			team_key = self.redis.get(f'teams:keys:{self.league}:{team["team"]["id"]}')
 			is_away = team['homeAway'] == 'away'
@@ -295,7 +325,7 @@ class ESPNClient:
 						(away_team_stats if is_away else home_team_stats).append(stat)
 					except Exception as e:
 						self.logger.warning(f'Failed to parse stat {label} ({value}): {e}')
-
+		
 		return event_results, away_team_stats, home_team_stats
 
 	def parse_player(self, player_json, team_key) -> PlayerData:
