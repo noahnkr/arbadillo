@@ -1,6 +1,3 @@
-import time
-import random
-
 from django.core.management import BaseCommand
 from django.utils.timezone import is_naive, make_aware
 from datetime import timezone
