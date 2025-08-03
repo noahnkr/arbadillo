@@ -13,7 +13,7 @@ FOOTBALL_MARKET_TO_STATS = {
     },
     'spread': {
         'context': 'team',
-        'label': 'margin_of_victory',
+        'label': 'margin',
         'stats': [
             'points_scored', 'points_allowed', 'total_yards',
             'turnovers', 'third_down_conversions', 'third_down_attempts',
@@ -23,12 +23,12 @@ FOOTBALL_MARKET_TO_STATS = {
     },
     'total': {
         'context': 'matchup',
-        'label': 'total_points',
+        'label': 'total',
         'stats': [
             'points_scored', 'points_allowed',
-            'total_yards', 'total_plays', 'yards_per_play',
-            'red_zone_conversions', 'red_zone_attempts', 
-            'def_tds', 'turnovers',
+            'total_yards', 'total_plays', 'total_drives',
+            'yards_per_play', 'turnovers', 'possession_time',
+            'red_zone_conversions', 'red_zone_attempts', 'def_tds', 
         ]
     },
 }
