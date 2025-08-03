@@ -9,3 +9,5 @@ SPORTS_LEAGUES = {
     'soccer': {'mls'},
     'hockey': {'nhl',},
 }
+
+SEASON_TYPES = { 'preseason', 'regular', 'postseason'}

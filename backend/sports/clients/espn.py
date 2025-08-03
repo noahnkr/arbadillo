@@ -18,13 +18,14 @@ from sports.dto import (
 	TeamStatData,
 )
 from common.constants.aliases import (
-	EFFICIENCY_STATS, REVERSE_STATS_LOOKUP,
+	EFFICIENCY_ALIASES, REVERSE_STATS_LOOKUP,
 )
 from common.utils.sportsbook_helpers import (
     create_event_key, 
 	get_team_key,
 	normalize_status_name, 
 )
+from common.utils.sports_helpers import normalize_season_type
 from common.constants.sportsbook_definitions import EVENT_TTL, EVENT_STATUSES
 from common.exceptions import NormalizationError
 
@@ -136,7 +137,7 @@ class ESPNClient:
 		for season_type in range(2, 4):
 			raw = self._get(f'/teams/{team_id}/schedule', params={'season': season, 'seasontype': season_type})
 			events.extend([
-				self.parse_event(competition)
+				self.parse_event(competition, event['season']['year'], event['seasonType']['name'])
 				for event in raw['events']
 				for competition in event['competitions']
 			])
@@ -155,7 +156,7 @@ class ESPNClient:
 			date = (datetime.now(tz=central) + timedelta(days=days)).strftime('%Y%m%d')
 			raw = self._get('/scoreboard', params={'dates': date})
 			events.extend([
-				self.parse_event(competition)
+				self.parse_event(competition, event['season']['year'], event['seasonType']['name'])
 				for event in raw['events']
 				for competition in event['competitions']
 			])
@@ -242,8 +243,8 @@ class ESPNClient:
 			event_scoring_kwargs[('away_team' if is_away else 'home_team')]['points_scored'] = score
 			event_scoring_kwargs[('home_team' if is_away else 'away_team')]['points_allowed'] = score
 
-		event_results_kwargs['margin_of_victory'] = abs(event_results_kwargs['away_score'] - event_results_kwargs['home_score'])
-		event_results_kwargs['total_points'] = event_results_kwargs['away_score'] + event_results_kwargs['home_score']
+		event_results_kwargs['margin'] = abs(event_results_kwargs['away_score'] - event_results_kwargs['home_score'])
+		event_results_kwargs['total'] = event_results_kwargs['away_score'] + event_results_kwargs['home_score']
 		event_results = EventResultData(**event_results_kwargs)
 
 		# Collect team scoring results for features
@@ -276,11 +277,11 @@ class ESPNClient:
 				label = team_stat['label']
 				value = team_stat['displayValue']
 
-				if label in EFFICIENCY_STATS:
+				if label in EFFICIENCY_ALIASES:
 					try:
 						sep = '-' if '-' in value else '/'
 						num, denom = map(int, value.split(sep))
-						conv_name, att_name = EFFICIENCY_STATS[label]
+						conv_name, att_name = EFFICIENCY_ALIASES[label]
 
 						conv_stat = TeamStatData(
 							league=self.league,
@@ -303,27 +304,28 @@ class ESPNClient:
 						self.logger.warning(f'Failed to parse efficiency stat {label} ({value}): {e}')
 
 				else:
-					try:
-						stat_name = REVERSE_STATS_LOOKUP.get((self.league, label))
-						if stat_name is None or '-' in value:
-							continue
-						
-						# Parse time stat
-						if ':' in value:
-							mins, secs = value.split(':')
-							value = int(mins) * 60 + int(secs)
+					if (self.league, label) in REVERSE_STATS_LOOKUP:
+						try:
+							stat_name = REVERSE_STATS_LOOKUP.get((self.league, label))[0]
+							if stat_name is None or '-' in value:
+								continue
+							
+							# Parse time stat
+							if ':' in value:
+								mins, secs = value.split(':')
+								value = int(mins) * 60 + int(secs)
 
-						stat = TeamStatData(
-							league=self.league,
-							event_key=event_key,
-							team_key=team_key,
-							stat_name=stat_name,
-							value=round(float(value), 3)
-						)
+							stat = TeamStatData(
+								league=self.league,
+								event_key=event_key,
+								team_key=team_key,
+								stat_name=stat_name,
+								value=round(float(value), 3)
+							)
 
-						(away_team_stats if is_away else home_team_stats).append(stat)
-					except Exception as e:
-						self.logger.warning(f'Failed to parse stat {label} ({value}): {e}')
+							(away_team_stats if is_away else home_team_stats).append(stat)
+						except Exception as e:
+							self.logger.warning(f'Failed to parse stat {label} ({value}): {e}')
 		
 		return event_results, away_team_stats, home_team_stats
 
@@ -340,7 +342,7 @@ class ESPNClient:
 	def parse_player_stats(self, player_stats_json, player_key) -> list[PlayerStatData]:
 		try:
 			stat_names = [
-				REVERSE_STATS_LOOKUP[(self.league, name)]
+				REVERSE_STATS_LOOKUP[(self.league, name)][0]
 				if (self.league, name) in REVERSE_STATS_LOOKUP
 				else None
 				for name in player_stats_json.get('displayNames', [])
@@ -378,7 +380,7 @@ class ESPNClient:
 		
 		return player_stats
 
-	def parse_event(self, event_json) -> EventData:
+	def parse_event(self, event_json, season, season_type) -> EventData:
 		competitors = event_json['competitors']
 		away_team_id = competitors[0]['id'] if competitors[0]['homeAway'] == 'away' else competitors[1]['id']
 		home_team_id = competitors[0]['id'] if competitors[0]['homeAway'] == 'home' else competitors[1]['id']
@@ -393,6 +395,8 @@ class ESPNClient:
 		return EventData(
 			espn_id=event_json['id'],
 			league=self.league,
+			season=season,
+			season_type=normalize_season_type(season_type),
 			event_key=event_key,
 			away_team=away_team_key,
 			home_team=home_team_key,

@@ -41,6 +41,8 @@ def sync_schedule(sport: str, league: str):
 			defaults={
 				'espn_id': event.espn_id,
 				'league': event.league,
+				'season': event.season,
+				'season_type': event.season_type,
 				'away_team': event.away_team,
 				'home_team': event.home_team,
 				'start_time': make_aware(event.start_time, timezone.utc) if is_naive(event.start_time) else event.start_time,

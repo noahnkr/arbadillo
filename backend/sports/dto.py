@@ -49,6 +49,8 @@ class PlayerData:
 class EventData:
     espn_id: int
     league: str
+    season: int
+    season_type: str
     event_key: str
     away_team: str
     home_team: str
@@ -57,7 +59,7 @@ class EventData:
     collected_at: datetime = field(default_factory=now)
     
     def __repr__(self) -> str:
-        return f'{self.start_time.strftime("%Y-%m-%d")} - {self.away_team} @ {self.home_team} ({self.league})'
+        return f'[{self.league} - {self.season} - {self.season_type}] {self.start_time.strftime("%Y-%m-%d")} - {self.away_team} @ {self.home_team}'
 
     def __hash__(self) -> int:
         parts = [
@@ -89,11 +91,12 @@ class EventResultData:
     event_key: str
     away_score: int
     home_score: int
-    margin_of_victory: int
+    total: int
+    margin: int
     winner: str
 
     def __repr__(self) -> str:
-        return f'{self.away_score} | {self.home_score} ({self.winner})'
+        return f'[{self.event_key}] {self.away_score} - {self.home_score}'
     
     def to_dict(self) -> dict:
         return asdict(self)
