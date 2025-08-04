@@ -6,9 +6,7 @@ FOOTBALL_MARKET_TO_STATS = {
             'points_scored', 'points_allowed', 
             'total_plays', 'total_yards', 'total_drives',
             'yards_per_play', 'turnovers', 'possession_time',
-            'third_down_conversions', 'third_down_attempts', 
-            'fourth_down_conversions', 'fourth_down_attempts',
-            'red_zone_conversions', 'red_zone_attempts',
+            'third_down_efficiency', 'fourth_down_efficiency', 'red_zone_efficiency'
         ]
     },
     'spread': {
