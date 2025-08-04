@@ -8,3 +8,6 @@ playwright
 playwright-stealth
 requests
 pytest
+pandas
+scikit-learn
+joblib
