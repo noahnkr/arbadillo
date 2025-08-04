@@ -1,7 +1,7 @@
 from datetime import datetime
 from collections import defaultdict
 from django.db.models import Model
-from sports.models import Event, TeamStat, PlayerStat
+from sports.models import Event, EventResult, TeamStat, PlayerStat
 from common.constants.aliases import REVERSE_STATS_LOOKUP, EFFICIENCY_ALIASES
 
 def _get_stats(
@@ -70,6 +70,10 @@ def get_events(
     return events
 
 
+def get_event_results(event_keys: list):
+    return EventResult.objects.filter(event_key__in=event_keys)
+
+
 def get_team_event_stats(league: str, season: int, team_key: str, event_key: str):
     stats = _get_stats(
         model=TeamStat, 
@@ -130,7 +134,7 @@ def get_player_season_stats(
 
     if before_date or after_date:
         events = get_events(
-            league, season, None,  # No need for team_key
+            league, season, None,
             before_date=before_date,
             after_date=after_date
         ).values_list('event_key', flat=True)
