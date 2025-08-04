@@ -1,6 +1,9 @@
 from django.core.management import BaseCommand
-from sports.models import TeamStat, PlayerStat
-from sports.queries import get_event_stats, get_season_stats_aggregate, get_season_stats
+from sports.queries import (
+    get_team_season_stats, get_player_season_stats,
+    get_team_event_stats, get_player_event_stats,
+    get_team_opponent_season_stats
+)
 
 class Command(BaseCommand):
     help = 'Get stored team or players stats by season'
@@ -9,7 +12,7 @@ class Command(BaseCommand):
         parser.add_argument('-l', '--league', type=str, required=True)
         parser.add_argument('-s', '--season', type=int, required=True)
         parser.add_argument('-e', '--event', type=str)
-        parser.add_argument('-a', '--aggregate', action='store_true')
+        parser.add_argument('-o', '--opponent', action='store_true')
 
         team_or_player = parser.add_mutually_exclusive_group(required=True)
         team_or_player.add_argument('-t', '--team', type=str)
@@ -20,18 +23,26 @@ class Command(BaseCommand):
         league = options['league']
         season = options['season']
         event = options['event']
+        opponent = options['opponent']
 
         team = options['team']
         player = options['player']
 
-        aggregate = options['aggregate']
-
-        model, key_field, entity_key = (TeamStat, 'team_key', team) if team else (PlayerStat, 'player_key', player)
-        params = [model, league, season, key_field, entity_key]
-
         if event:
-            print(get_event_stats(*params, event))
-        elif aggregate:
-            print(get_season_stats_aggregate(*params))
+            stats = get_team_event_stats(
+                league, season, team, event
+            ) if team else get_player_event_stats(
+                league, season, player, event
+            )
+        elif opponent:
+            stats = get_team_opponent_season_stats(
+                league, season, team
+            ) if team else {}
         else:
-            print(get_season_stats(*params))
+            stats = get_team_season_stats(
+                league, season, team
+            ) if team else get_player_season_stats(
+                league, season, player
+            )
+        
+        print(stats)
