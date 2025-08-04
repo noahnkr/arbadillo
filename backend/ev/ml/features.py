@@ -4,7 +4,16 @@ from sports.queries import (
     get_team_opponent_season_stats
 )
 
-def build_features_for_market(market, league, season, team_key=None, opponent_key=None, player_key=None):
+def build_features_for_market(
+        market, 
+        league, 
+        season, 
+        team_key=None, 
+        opponent_key=None, 
+        player_key=None,
+        before_date=None,
+        after_date=None):
+
     config = MARKET_TO_STATS[league][market]
     required_stats = config['stats']
     context = config['context']
@@ -12,10 +21,10 @@ def build_features_for_market(market, league, season, team_key=None, opponent_ke
     feature_vector = {}
 
     if context == 'team':
-        self_stats = get_team_season_stats(league, season, team_key)
-        opp_stats = get_team_season_stats(league, season, opponent_key)
-        self_opp_stats = get_team_opponent_season_stats(league, season, team_key)
-        opp_opp_stats = get_team_opponent_season_stats(league, season, opponent_key)
+        self_stats = get_team_season_stats(league, season, team_key, before_date, after_date)
+        opp_stats = get_team_season_stats(league, season, opponent_key, before_date, after_date)
+        self_opp_stats = get_team_opponent_season_stats(league, season, team_key, before_date, after_date)
+        opp_opp_stats = get_team_opponent_season_stats(league, season, opponent_key, before_date, after_date)
 
         for stat in required_stats:
             x = self_stats[stat]
