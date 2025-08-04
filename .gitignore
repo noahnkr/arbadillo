@@ -19,3 +19,6 @@ env/
 # Celery Beat
 celery-beat
 celerybeat-schedule
+
+# Serialized models
+*.pkl
