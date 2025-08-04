@@ -22,7 +22,7 @@ FOOTBALL_MARKET_TO_STATS = {
         ]
     },
     'total': {
-        'context': 'matchup',
+        'context': 'team',
         'label': 'total',
         'stats': [
             'points_scored', 'points_allowed',
