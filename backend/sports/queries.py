@@ -17,36 +17,9 @@ def _get_stats(
     if event_keys:
         filters['event_key__in'] = event_keys
     else:
-        filters['event_key__in'] = _get_events(league, season).values_list('event_key', flat=True)
+        filters['event_key__in'] = get_events(league, season).values_list('event_key', flat=True)
 
     return model.objects.filter(**filters).values()
-
-
-def _get_events(
-        league: str, 
-        season: int,
-        team_key: str = None,
-        before_date: datetime = None, 
-        after_date: datetime = None):
-    filters = { 'league': league, 'season': season }
-
-    if before_date:
-        filters['start_time__lt'] = before_date
-    if after_date:
-        filters['start_time__gte'] = after_date
-
-    if team_key:
-        events = Event.objects.filter(**filters, away_team=team_key) | Event.objects.filter(**filters, home_team=team_key)
-    else:
-        events = Event.objects.filter(**filters)
-
-    return events
-
-
-def _resolve_before_date(before_date: datetime = None, as_of_event=None):
-    if as_of_event:
-        return as_of_event.start_time
-    return before_date
 
 
 def _aggregate_stats(league: str, stats: list):
@@ -76,7 +49,28 @@ def _aggregate_stats(league: str, stats: list):
     return aggregate
 
 
-def get_team_event_stats(league: str, season: str, team_key: str, event_key: str):
+def get_events(
+        league: str, 
+        season: int,
+        team_key: str = None,
+        before_date: datetime = None, 
+        after_date: datetime = None):
+    filters = { 'league': league, 'season': season }
+
+    if before_date:
+        filters['start_time__lt'] = before_date
+    if after_date:
+        filters['start_time__gte'] = after_date
+
+    if team_key:
+        events = Event.objects.filter(**filters, away_team=team_key) | Event.objects.filter(**filters, home_team=team_key)
+    else:
+        events = Event.objects.filter(**filters)
+
+    return events
+
+
+def get_team_event_stats(league: str, season: int, team_key: str, event_key: str):
     stats = _get_stats(
         model=TeamStat, 
         league=league,
@@ -88,7 +82,7 @@ def get_team_event_stats(league: str, season: str, team_key: str, event_key: str
     return { s['stat_name']: s['value'] for s in stats }
 
 
-def get_player_event_stats(league: str, season: str, player_key: str, event_key: str):
+def get_player_event_stats(league: str, season: int, player_key: str, event_key: str):
     stats = _get_stats(
         model=PlayerStat, 
         league=league,
@@ -102,16 +96,13 @@ def get_player_event_stats(league: str, season: str, player_key: str, event_key:
 
 def get_team_season_stats(
         league: str,
-        season: str,
+        season: int,
         team_key: str,
         before_date: datetime = None,
-        after_date: datetime = None,
-        as_of_event=None):
-
-    before_date = _resolve_before_date(before_date, as_of_event)
+        after_date: datetime = None):
 
     if before_date or after_date:
-        events = _get_events(
+        events = get_events(
             league, season, team_key, 
             before_date=before_date,
             after_date=after_date
@@ -132,16 +123,13 @@ def get_team_season_stats(
  
 def get_player_season_stats(
         league: str,
-        season: str,
+        season: int,
         player_key: str,
         before_date: datetime = None,
-        after_date: datetime = None,
-        as_of_event=None):
-
-    before_date = _resolve_before_date(before_date, as_of_event)
+        after_date: datetime = None):
 
     if before_date or after_date:
-        events = _get_events(
+        events = get_events(
             league, season, None,  # No need for team_key
             before_date=before_date,
             after_date=after_date
@@ -160,18 +148,14 @@ def get_player_season_stats(
     return _aggregate_stats(league, stats)
 
 
-
 def get_team_opponent_season_stats(
         league: str, 
-        season: str, 
+        season: int, 
         team_key: str, 
         before_date: datetime = None,
-        after_date: datetime = None,
-        as_of_event=None):
+        after_date: datetime = None):
 
-    before_date = _resolve_before_date(before_date, as_of_event)
-
-    events = _get_events(
+    events = get_events(
         league, season, team_key, 
         before_date=before_date, 
         after_date=after_date
