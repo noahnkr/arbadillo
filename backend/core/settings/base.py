@@ -14,6 +14,7 @@ INSTALLED_APPS = [
     'core',
     'sports',
     'sportsbook',
+    'ev',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -165,7 +166,6 @@ REDIS_PORT = os.getenv('REDIS_PORT', 6379)
 REDIS_DB = os.getenv('REDIS_DB', 0)
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', None)
 
-
 # Celery
 
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
@@ -185,3 +185,7 @@ CELERY_TASK_QUEUES = [
 CELERY_TASK_DEFAULT_QUEUE = 'default'
 CELERY_TASK_DEFAULT_EXCHANGE = 'default'
 CELERY_TASK_DEFAULT_ROUTING_KEY = 'default'
+
+# Models
+
+MODEL_DIR = os.path.join(BASE_DIR, 'ev', 'ml', 'model_store')

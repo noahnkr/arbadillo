@@ -1,6 +1,13 @@
+import pprint
+from datetime import datetime
+from datetime import timezone
 from django.core.management import BaseCommand
-from sports.models import TeamStat, PlayerStat
-from sports.queries import get_event_stats, get_season_stats_aggregate, get_season_stats
+from django.utils.timezone import make_aware
+from sports.queries import (
+    get_team_season_stats, get_player_season_stats,
+    get_team_event_stats, get_player_event_stats,
+    get_team_opponent_season_stats
+)
 
 class Command(BaseCommand):
     help = 'Get stored team or players stats by season'
@@ -8,30 +15,55 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('-l', '--league', type=str, required=True)
         parser.add_argument('-s', '--season', type=int, required=True)
-        parser.add_argument('-e', '--event', type=str)
-        parser.add_argument('-a', '--aggregate', action='store_true')
+        parser.add_argument('-t', '--team', type=str, required=True)
 
-        team_or_player = parser.add_mutually_exclusive_group(required=True)
-        team_or_player.add_argument('-t', '--team', type=str)
-        team_or_player.add_argument('-p', '--player', type=str)
+        parser.add_argument('-p', '--player', type=str)
+        parser.add_argument('-o', '--opponent', action='store_true')
+
+        parser.add_argument('-e', '--event', type=str)
+        parser.add_argument('-b', '--before', type=str, help='Date in the format: YYYY-MM-DD')
+        parser.add_argument('-a', '--after', type=str, help='Date in the format: YYYY-MM-DD')
 
     
     def handle(self, *args, **options):
         league = options['league']
         season = options['season']
-        event = options['event']
-
         team = options['team']
         player = options['player']
+        opponent = options['opponent']
 
-        aggregate = options['aggregate']
+        event = options['event']
+        before = options['before']
+        after = options['after']
 
-        model, key_field, entity_key = (TeamStat, 'team_key', team) if team else (PlayerStat, 'player_key', player)
-        params = [model, league, season, key_field, entity_key]
+        if event and (before or after):
+            raise ValueError("You cannot provide both --event and --before/--after filters")
+
+        if before:
+            before = datetime.strptime(before, '%Y-%m-%d')
+            before = make_aware(before, timezone.utc)
+
+        if after:
+            after = datetime.strptime(after, '%Y-%m-%d').replace()
+            after = make_aware(after, timezone.utc)
 
         if event:
-            print(get_event_stats(*params, event))
-        elif aggregate:
-            print(get_season_stats_aggregate(*params))
+            stats = get_team_event_stats(
+                league, season, team, event
+            ) if team else get_player_event_stats(
+                league, season, player, event
+            )
+
+        elif opponent:
+            stats = get_team_opponent_season_stats(
+                league, season, team, before, after
+            ) if team else {}
+
         else:
-            print(get_season_stats(*params))
+            stats = get_team_season_stats(
+                league, season, team, before, after
+            ) if team else get_player_season_stats(
+                league, season, team, player, before, after
+            )
+        
+        pprint.pprint(stats)
