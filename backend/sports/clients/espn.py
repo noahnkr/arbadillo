@@ -3,7 +3,6 @@ import requests
 import logging
 import time
 
-from requests import HTTPError
 from datetime import datetime, timedelta
 from dateutil import tz
 from redis import Redis
@@ -49,23 +48,18 @@ class ESPNClient:
 		base_url = self.V2_BASE_URL if v2 else self.V3_BASE_URL
 		url = f'{base_url}/{self.sport}/{self.league}{path}'
 
-		retries = 3
-		got_response = False
-		while retries > 0 and not got_response:
+		for attempt in range(1, 4):
 			try:
-				response = requests.get(url, params=params)
+				response = requests.get(url, params=params, timeout=10)
 				response.raise_for_status()
-				got_response = True
-			except HTTPError:
-				self.logger.warning(f'A HTTPError occured while yielding request to {url}. Retrying {retries} more times...')
-				retries -= 1
-				time.sleep(3)
-		
-		if retries == 0 and not got_response:
-			self.logger.critical(f'Unable to recieve response from {url}')
-			return {}
+				return response.json()
+			except requests.RequestException as e:
+				self.logger.warning(f'Request to {url} failed (attempt {attempt}/3): {e}')
+				if attempt < 3:
+					time.sleep(3 * attempt)
 
-		return response.json()
+		self.logger.critical(f'All retries exhausted for {url}')
+		return {}
 
 	def get_teams(self) -> tuple[list[TeamData], list[TeamData]]:
 		teams = []
