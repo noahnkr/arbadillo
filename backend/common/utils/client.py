@@ -1,29 +1,6 @@
 import importlib
 
-from playwright.sync_api import sync_playwright
-from playwright_stealth import Stealth
-
 from common.constants.sportsbook_definitions import CLIENT_MAP
-
-_browser = None
-_playwright = None
-
-def init_browser():
-    global _browser, _playwright
-    if _browser is None:
-        ctx = Stealth().use_sync(sync_playwright())
-        _playwright = ctx.__enter__()
-        _browser = _playwright.chromium.launch(headless=True)
-    return _browser
-
-
-def shutdown_browser():
-    global _browser, _playwright
-    if _browser:
-        _browser.close()
-        _playwright.stop()
-        _browser = None
-        _playwright = None
 
 
 def get_class_from_path(path: str):

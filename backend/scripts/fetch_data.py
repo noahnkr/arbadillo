@@ -3,8 +3,10 @@ import json
 
 from urllib.parse import urlencode
 
+from playwright.sync_api import sync_playwright
+from playwright_stealth import Stealth
+
 from common.utils.sportsbook_helpers import get_sport_from_league
-from common.utils.client import init_browser
 
 def fetch_data(url, context, headers=None, params=None, method='request', intercept_query=None):
     default_headers = {
@@ -18,6 +20,7 @@ def fetch_data(url, context, headers=None, params=None, method='request', interc
     query_str = '?' + encoded_params if encoded_params else ''
 
     final_url = url + query_str
+    print(final_url)
     try:
         if method == 'request':
             response = context.request.get(final_url, headers=final_headers)
@@ -144,9 +147,9 @@ def fetch_draftkings_data(context, output, league, event_id=None):
     }
     url = 'https://sportsbook-nash.draftkings.com/api/sportscontent/dkusil/v1'
     if event_id:
-        url += f'/leagues/{LEAGUE_ID_MAP[league]}'
+        url += f'/events/{event_id}/categories'
     else:
-        url = f'/events/{event_id}/categories'
+        url += f'/leagues/{LEAGUE_ID_MAP[league]}'
     headers = {
         'origin': 'https://sportsbook.draftkings.com',
         'referer': 'https://sportsbook.draftkings.com',
@@ -212,7 +215,9 @@ def fetch_betmgm_data(context, output, league, event_id=None):
 
 
 def main(output, league, event_id):
-    browser = init_browser()
+    playwright_ctx = Stealth().use_sync(sync_playwright())
+    playwright = playwright_ctx.__enter__()
+    browser = playwright.chromium.launch(headless=True)
     context = browser.new_context()
 
     match args.sportsbook:
@@ -222,9 +227,10 @@ def main(output, league, event_id):
         case 'betrivers': fetch_betrivers_data(context, output, league, event_id=event_id)
         case 'betmgm': fetch_betmgm_data(context, output, league, event_id=event_id)
         case _: print(f'Unknown sportsbook `{args.sportsbook}`')
-    
+
     context.close()
     browser.close()
+    playwright.stop()
 
 
 if __name__ == '__main__':

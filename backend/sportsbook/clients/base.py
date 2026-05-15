@@ -16,7 +16,9 @@ from common.utils.sportsbook_helpers import (
     correct_over_under_line, 
     normalize_status_name, 
 )
-from common.utils.client import init_browser
+from playwright.sync_api import sync_playwright
+from playwright_stealth import Stealth
+
 from common.constants.sportsbook_definitions import EVENT_TTL, SELECTION_TTL
 from common.exceptions import NormalizationError
 
@@ -32,14 +34,19 @@ class SportsbookClient(ABC):
             db=settings.REDIS_DB,
             decode_responses=True
         )
-        self.context = init_browser().new_context()
+        self._playwright_ctx = Stealth().use_sync(sync_playwright())
+        self._playwright = self._playwright_ctx.__enter__()
+        self._browser = self._playwright.chromium.launch(headless=True)
+        self.context = self._browser.new_context()
         self.logger = logging.getLogger(self.name)
 
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc, tb):
         self.context.close()
+        self._browser.close()
+        self._playwright.stop()
 
     def _get(self, url, headers=None, params=None, method='request', intercept_query=None):
         default_headers = {
