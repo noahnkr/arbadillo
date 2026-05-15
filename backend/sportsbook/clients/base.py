@@ -69,16 +69,19 @@ class SportsbookClient(ABC):
 
             elif method == 'page_evaluate_fetch':
                 page = self.context.new_page()
-                js  = f"""
-                    async () => {{
-                        const res = await fetch("{final_url}", {{
-                            method: 'GET',
-                            headers: {final_headers}
-                        }});
-                        return await res.json();
-                    }}
-                """
-                return page.evaluate(js)
+                try:
+                    js  = f"""
+                        async () => {{
+                            const res = await fetch("{final_url}", {{
+                                method: 'GET',
+                                headers: {final_headers}
+                            }});
+                            return await res.json();
+                        }}
+                    """
+                    return page.evaluate(js)
+                finally:
+                    page.close()
 
             elif method == 'page_intercept':
                 if not intercept_query:
