@@ -1,4 +1,5 @@
 import re
+import os
 
 from dateutil.parser import isoparse
 
@@ -10,10 +11,12 @@ from common.exceptions import NormalizationError
 class FanDuelClient(SportsbookClient):
     NAME = 'fanduel'
     BASE_URL = 'https://sbapi.il.sportsbook.fanduel.com/api'
-    AUTH_TOKEN = 'FhMFpcPWXMeyZxOx'
 
     def __init__(self, sport: str, league: str):
         super().__init__(self.NAME, sport, league)
+        self.AUTH_TOKEN = os.getenv('FANDUEL_AUTH_TOKEN', '')
+        if not self.AUTH_TOKEN:
+            raise ValueError('FANDUEL_AUTH_TOKEN environment variable is not set')
     
     def _get(self, path, params):
         url = self.BASE_URL + path

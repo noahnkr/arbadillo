@@ -186,6 +186,11 @@ CELERY_TASK_DEFAULT_QUEUE = 'default'
 CELERY_TASK_DEFAULT_EXCHANGE = 'default'
 CELERY_TASK_DEFAULT_ROUTING_KEY = 'default'
 
+# Sportsbook auth tokens
+
+ESPNBET_AUTH_TOKEN = os.getenv('ESPNBET_AUTH_TOKEN', '')
+FANDUEL_AUTH_TOKEN = os.getenv('FANDUEL_AUTH_TOKEN', '')
+
 # Models
 
 MODEL_DIR = os.path.join(BASE_DIR, 'ev', 'ml', 'model_store')
