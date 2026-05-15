@@ -50,13 +50,16 @@ def scrape_selections_for_event(sportsbook, league, event_key):
 	start = time.perf_counter()
 	logger.info(f'Scraping {sportsbook} selections for {event_key}...')
 	sport = get_sport_from_league(league)
+	redis_key = f'{sportsbook}:timing:scrape_selections_for_event:{league}:{event_key}'
 	try:
 		with get_client(sportsbook, sport, league) as client:
 			selections = client.parse_markets(event_key)
 		return [s.to_dict() for s in selections]
+	except Exception:
+		logger.exception(f'scrape_selections_for_event failed: {sportsbook} / {league} / {event_key}')
+		return []
 	finally:
 		elapsed = time.perf_counter() - start
-		redis_key = f'{sportsbook}:timing:scrape_selections_for_event:{league}:{event_key}'
 		redis.set(redis_key, elapsed)
 		logger.debug(f'Scraped {sportsbook} selections for {event_key} in {elapsed:.2f} seconds.')
 
