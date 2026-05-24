@@ -77,17 +77,22 @@ def batch_upsert_selections(selection_data_lists: list):
 	# Aggregate scraping times from previous tasks
 	for sportsbook in SPORTSBOOK_CLIENTS:
 		for league in CLIENT_LEAGUES:
-			keys = redis.keys(f'{sportsbook}:timing:scrape_selections_for_event:{league}:*')
-			durations = [float(redis.get(k)) for k in keys]
+			keys = list(redis.scan_iter(f'{sportsbook}:timing:scrape_selections_for_event:{league}:*'))
+			if not keys:
+				continue
+
+			pipe = redis.pipeline()
+			for k in keys:
+				pipe.get(k)
+			raw_values = pipe.execute()
+			durations = [float(v) for v in raw_values if v is not None]
 
 			total_time = sum(durations)
 			avg_time = total_time / len(durations) if durations else 0
 
 			logger.info(f'Total {sportsbook} execution time for {league}: {total_time:.2f} seconds.')
-			logger.info(f'Avg. {sportsbook} execution time for for {league}: {avg_time:.2f} seconds.')
-
-			if keys:
-				redis.delete(*keys)
+			logger.info(f'Avg. {sportsbook} execution time for {league}: {avg_time:.2f} seconds.')
+			redis.delete(*keys)
 
 	# Flatten nested lists and load selection data
 	selection_data = [
