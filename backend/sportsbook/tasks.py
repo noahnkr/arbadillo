@@ -1,4 +1,5 @@
 import logging
+import random
 import time
 
 from celery import shared_task, group, chord
@@ -24,12 +25,17 @@ logger = logging.getLogger(__name__)
 @shared_task(queue='scraping')
 def sync_selections(status: str):
 	logger.info('Syncing selections...')
-	tasks = [
-		scrape_selections_for_event.s(sportsbook=sportsbook, league=league, event_key=event_key)
-		for league in CLIENT_LEAGUES
-		for sportsbook in SPORTSBOOK_CLIENTS
-		for event_key in redis.smembers(f'events:{league}:{status}')
-	]
+	tasks = []
+	for league in CLIENT_LEAGUES:
+		event_keys = list(redis.smembers(f'events:{league}:{status}'))
+		for i, event_key in enumerate(event_keys):
+			for j, sportsbook in enumerate(sorted(SPORTSBOOK_CLIENTS)):
+				countdown = (j * 8) + (i * 1.5) + random.uniform(0, 3)
+				tasks.append(
+					scrape_selections_for_event.s(
+						sportsbook=sportsbook, league=league, event_key=event_key,
+					).set(countdown=countdown)
+				)
 	if not tasks:
 		logger.warning(f'sync_selections({status!r}): no event keys in Redis — skipping')
 		return
