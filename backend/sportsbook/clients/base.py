@@ -87,36 +87,16 @@ class SportsbookClient(ABC):
                 if not intercept_query:
                     raise ValueError('Parameter intercept_query is required for method=`page_intercept`')
 
-                page = self.context.new_page() 
-                found = False
-                data = None
-
-                def handle_response(response):
-                    nonlocal found, data
-                    if intercept_query in response.url:
-                        page.remove_listener('response', handle_response)
-                        body = response.text()
-                        parsed = json.loads(body)
-                        data = parsed
-                        found = True
-                
-                page.on('response', handle_response)
-
+                page = self.context.new_page()
                 try:
-                    page.goto(final_url)
-
-                    elapsed = 0
-                    while not found and elapsed < 15000:
-                        page.wait_for_timeout(500)
-                        elapsed += 500
-
-                    if not found:
-                        raise RuntimeError(f'Timeout waiting for `{intercept_query}`')
-
+                    with page.expect_response(
+                        lambda r: intercept_query in r.url,
+                        timeout=15000,
+                    ) as response_info:
+                        page.goto(final_url)
+                    return response_info.value.json()
                 finally:
                     page.close()
-
-                return data
 
             else:
                 raise ValueError(f'Unknown method `{method}`')
