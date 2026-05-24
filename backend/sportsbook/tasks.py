@@ -24,15 +24,16 @@ logger = logging.getLogger(__name__)
 @shared_task(queue='scraping')
 def sync_selections(status: str):
 	logger.info('Syncing selections...')
-	chord(
-		group(
-			scrape_selections_for_event.s(sportsbook=sportsbook, league=league, event_key=event_key)
-			for league in CLIENT_LEAGUES
-			for sportsbook in SPORTSBOOK_CLIENTS
-			for event_key in redis.smembers(f'events:{league}:{status}')
-		),
-		batch_upsert_selections.s()
-	).apply_async()
+	tasks = [
+		scrape_selections_for_event.s(sportsbook=sportsbook, league=league, event_key=event_key)
+		for league in CLIENT_LEAGUES
+		for sportsbook in SPORTSBOOK_CLIENTS
+		for event_key in redis.smembers(f'events:{league}:{status}')
+	]
+	if not tasks:
+		logger.warning(f'sync_selections({status!r}): no event keys in Redis — skipping')
+		return
+	chord(group(tasks), batch_upsert_selections.s()).apply_async()
 
 
 @shared_task(queue='scraping')
