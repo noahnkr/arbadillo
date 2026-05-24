@@ -7,7 +7,6 @@ class Selection(models.Model):
 
     sportsbook = models.CharField(max_length=50)
     league = models.CharField(max_length=20)
-    event = models.CharField(max_length=100)
     event_key = models.CharField(max_length=100)
     market_key = models.CharField(max_length=100)
     market = models.CharField(max_length=50)
