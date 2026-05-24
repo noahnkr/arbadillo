@@ -4,8 +4,8 @@ import time
 from celery import shared_task, group, chord
 from redis import Redis
 from django.conf import settings
+from django.db import transaction
 
-from sports.models import Event
 from .models import Selection
 from .dto import SelectionData
 
@@ -95,59 +95,27 @@ def batch_upsert_selections(selection_data_lists: list):
 			logger.info(f'Avg. {sportsbook} execution time for {league}: {avg_time:.2f} seconds.')
 			redis.delete(*keys)
 
-	# Flatten nested lists and load selection data
+	# Flatten nested lists and load selection data, guarding against failed subtasks
 	selection_data = [
 		SelectionData.from_dict(s)
-		for sublist in selection_data_lists 
+		for sublist in selection_data_lists
+		if sublist
 		for s in sublist
 	]
-	
-	logger.info(f'Upserting {len(selection_data)} selections...')
 
-	deduped_selection_data = {}
-	for selection in selection_data:
-		key = (selection.sportsbook, selection.league, selection.event_key, selection.market_key, selection.outcome)
-		deduped_selection_data[key] = selection
-	
-	selection_data = list(deduped_selection_data.values())
+	# Last-write-wins dedup within the batch
+	deduped: dict[tuple, SelectionData] = {}
+	for sel in selection_data:
+		key = (sel.sportsbook, sel.league, sel.event_key, sel.market_key, sel.outcome)
+		deduped[key] = sel
 
-	to_create, to_update = [], []
+	deduped_list = list(deduped.values())
+	logger.info(f'Upserting {len(deduped_list)} selections...')
 
-	lookup_keys = set(
-		(s.sportsbook, s.league, s.event_key, s.market_key, s.outcome)
-		for s in selection_data
-	)
-
-	existing_selections = {
-		(s.sportsbook, s.league, s.event_key, s.market_key, s.outcome): s
-		for s in Selection.objects.filter(
-			sportsbook__in={k[0] for k in lookup_keys},
-			league__in={k[1] for k in lookup_keys},
-			event_key__in={k[2] for k in lookup_keys},
-			market_key__in={k[3] for k in lookup_keys},
-			outcome__in={k[4] for k in lookup_keys},
+	with transaction.atomic():
+		Selection.objects.bulk_create(
+			[Selection(**s.to_dict()) for s in deduped_list],
+			update_conflicts=True,
+			unique_fields=['sportsbook', 'league', 'event_key', 'market_key', 'outcome'],
+			update_fields=['line', 'value', 'status', 'collected_at'],
 		)
-	}
-
-	for selection in selection_data:
-		key = (selection.sportsbook, selection.league, selection.event_key, selection.market_key, selection.outcome)
-		
-		existing = existing_selections.get(key)
-		if existing:
-			has_changes = any(
-				getattr(existing, field) != getattr(selection, field)
-				for field in ['line', 'value', 'status']
-			)
-			if has_changes:
-				for field in ['line', 'value', 'status', 'collected_at']:
-					setattr(existing, field, getattr(selection, field))
-				to_update.append(existing)
-		else:
-			to_create.append(Selection(**selection.to_dict()))
-
-	if to_create:
-		Selection.objects.bulk_create(to_create)
-		logger.info(f'Creating {len(to_create)} selection rows...')
-	if to_update:
-		Selection.objects.bulk_update(to_update, ['line', 'value', 'status', 'collected_at'])
-		logger.info(f'Updating {len(to_update)} selection rows...')
