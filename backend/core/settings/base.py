@@ -186,6 +186,30 @@ CELERY_TASK_DEFAULT_QUEUE = 'default'
 CELERY_TASK_DEFAULT_EXCHANGE = 'default'
 CELERY_TASK_DEFAULT_ROUTING_KEY = 'default'
 
+CELERY_TASK_SOFT_TIME_LIMIT = 60
+CELERY_TASK_TIME_LIMIT = 90
+
+CELERY_BEAT_SCHEDULE = {
+    'sync-espn-schedule': {
+        'task': 'sports.tasks.sync_schedule',
+        'schedule': 300,
+        'kwargs': {'sport': 'baseball', 'league': 'mlb'},
+        'options': {'queue': 'scraping'},
+    },
+    'sync-upcoming-selections': {
+        'task': 'sportsbook.tasks.sync_selections',
+        'schedule': 300,
+        'kwargs': {'status': 'upcoming'},
+        'options': {'queue': 'scraping'},
+    },
+    'sync-active-selections': {
+        'task': 'sportsbook.tasks.sync_selections',
+        'schedule': 45,
+        'kwargs': {'status': 'active'},
+        'options': {'queue': 'scraping'},
+    },
+}
+
 # Sportsbook auth tokens
 
 ESPNBET_AUTH_TOKEN = os.getenv('ESPNBET_AUTH_TOKEN', '')
